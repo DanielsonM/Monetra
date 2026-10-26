@@ -35,13 +35,22 @@ async function migrar(db: SQLite.SQLiteDatabase) {
 
       PRAGMA user_version = 2;
     `);
-  } else if (versao < 2) {
+  } 
+  
+  if (versao < 2) {
     // Banco antigo (versão 1): só adiciona a coluna "pago"
     await db.execAsync(`
       ALTER TABLE despesas ADD COLUMN pago INTEGER NOT NULL DEFAULT 0;
       PRAGMA user_version = 2;
     `);
   }
+
+  if (versao < 3) {
+  await db.execAsync(`
+    ALTER TABLE despesas ADD COLUMN observacao TEXT;
+    PRAGMA user_version = 3;
+  `);
+}
 }
 
 // Abre o banco uma única vez e reaproveita a conexão

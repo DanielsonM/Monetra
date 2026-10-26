@@ -60,6 +60,7 @@ export default function CadDespesas() {
   const [valor, setValor] = useState("");
   const [tipo, setTipo] = useState("");
   const [vencimento, setVencimento] = useState("");
+  const [observacao, setObservacao] = useState("");
 
   const [tipoAberto, setTipoAberto] = useState(false);
   const [posTipo, setPosTipo] = useState({ top: 0, left: 0, width: 0 });
@@ -107,6 +108,7 @@ export default function CadDespesas() {
         valor: valorNumero,
         tipo,
         vencimento: vencimentoISO,
+        observacao,
       });
 
       // Agenda os avisos de vencimento da nova despesa
@@ -174,6 +176,16 @@ export default function CadDespesas() {
         value={vencimento}
         onChangeText={setVencimento}
       />
+
+      <Text style={styles.label}>Observação (opcional)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Ex.: parcela 3 de 12"
+        maxLength={30}
+        value={observacao}
+        onChangeText={setObservacao}
+      />
+      <Text style={styles.contador}>{observacao.length}/30</Text>
 
       <TouchableOpacity style={styles.botao} onPress={salvar}>
         <Text style={styles.botaoTexto}>Salvar</Text>
@@ -248,6 +260,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: "#1A1A1A",
+  },
+
+  // Contador de caracteres da observação
+  contador: {
+    fontSize: 12,
+    color: "#999999",
+    textAlign: "right",
+    marginTop: 4,
   },
 
   // Combobox

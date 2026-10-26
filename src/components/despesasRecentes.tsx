@@ -4,10 +4,11 @@ import { useCallback, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import {
   type Despesa,
-  definirPago,
   listarRecentes,
+  pagarDespesa,
+  renovarPendentes,
 } from "../database/dbGestor/dbDespesas";
-import { dataISOparaBR } from "../utils/converterData";
+import { dataISOparaBR, somarUmMes } from "../utils/converterData";
 
 type NomeIcone = keyof typeof Ionicons.glyphMap;
 
@@ -102,11 +103,10 @@ export default function DespesasRecentes() {
 
   const carregar = useCallback(async () => {
   try {
-    const lista = await listarRecentes(5);
-    console.log("DESPESAS DO BANCO:", lista);
-    setDespesas(lista);
+    await renovarPendentes();
+    setDespesas(await listarRecentes(5));
   } catch (erro) {
-    console.error("ERRO AO CARREGAR:", erro);
+    console.error(erro);
   }
 }, []);
 
@@ -118,29 +118,30 @@ export default function DespesasRecentes() {
   );
 
   // Toque no card: confirma e alterna entre pago / não pago
-  const alternarPago = (d: Despesa) => {
-    Alert.alert(
-      d.pago ? "Desmarcar pagamento" : "Marcar como paga",
-      d.pago
-        ? `Marcar "${d.nome}" como não paga?`
-        : `Confirmar o pagamento de "${d.nome}"?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Confirmar",
-          onPress: async () => {
-            try {
-              await definirPago(d.id, !d.pago);
-              await carregar();
-            } catch (erro) {
-              console.error(erro);
-              Alert.alert("Erro", "Não foi possível atualizar a despesa.");
-            }
-          },
+  // Toque no card: confirma o pagamento e avança o vencimento em um mês
+const confirmarPagamento = (d: Despesa) => {
+  const proximo = dataISOparaBR(somarUmMes(d.vencimento));
+
+  Alert.alert(
+    "Marcar como paga",
+    `Confirmar o pagamento de "${d.nome}"?\n\nO próximo vencimento será ${proximo}.`,
+    [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Confirmar",
+        onPress: async () => {
+          try {
+            await pagarDespesa(d.id);
+            await carregar();
+          } catch (erro) {
+            console.error(erro);
+            Alert.alert("Erro", "Não foi possível atualizar a despesa.");
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
 
   return (
     <View style={styles.secao}>
@@ -155,12 +156,14 @@ export default function DespesasRecentes() {
         const status = calcularStatus(d);
 
         return (
-          <TouchableOpacity
+       <TouchableOpacity
             key={d.id}
             style={styles.card}
-            onPress={() => alternarPago(d)}
+            onPress={() => confirmarPagamento(d)}
+            disabled={!!d.pago}
             activeOpacity={0.8}
           >
+                    
             <View style={[styles.circulo, { backgroundColor: icone.cor }]}>
               <Ionicons name={icone.nome} size={26} color="#FFFFFF" />
             </View>

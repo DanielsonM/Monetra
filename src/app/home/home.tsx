@@ -158,8 +158,16 @@ export default function Home() {
                 <Text style={styles.menuItem}>Consulta</Text>
               </TouchableOpacity>
 
-              {consultaAberto && (
+             {consultaAberto && (
                 <View style={styles.submenu}>
+                  <TouchableOpacity
+                    style={styles.submenuBotao}
+                    onPress={() => navegarPara("/consultas/conSaldo")}
+                  >
+                    <IconeMenu nome="wallet-outline" cor="#00897B" pequeno />
+                    <Text style={styles.submenuItem}>Saldo</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity
                     style={styles.submenuBotao}
                     onPress={() => navegarPara("/consultas/conDespesa")}
