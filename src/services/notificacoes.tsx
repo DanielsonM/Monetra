@@ -1,14 +1,22 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { listarDespesas, type Despesa } from "../database/dbGestor/dbDespesas";
+import {
+  type ConfigNotificacao,
+  carregarConfigNotificacao,
+} from "../database/dbGestor/dbConfiguracoes";
+import {
+  type Despesa,
+  listarDespesas,
+  renovarPendentes,
+} from "../database/dbGestor/dbDespesas";
+import { dataISOparaBR } from "../utils/converterData";
+
 // ---------------------------------------------------------------------------
-// Configurações (ajuste aqui)
+// Constantes
 // ---------------------------------------------------------------------------
 const CANAL_ID = "vencimentos";
-const HORA_AVISO = 9; // hora do aviso (09:00)
-const MINUTO_AVISO = 0;
-const DIAS_AVISO_ATRASO = 5; // quantos dias seguidos avisar "já venceu"
 const LIMITE_AGENDADAS = 60; // o iOS aceita no máximo 64 notificações agendadas
+const DIAS_PONTE = 2; // dias após vencer cobertos mesmo sem abrir o app (ver nota)
 
 // Como a notificação se comporta com o app aberto (aparece como banner)
 Notifications.setNotificationHandler({
@@ -50,27 +58,31 @@ export async function pedirPermissaoNotificacoes(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
+// Horários do dia: do início ao fim, de X em X horas (ex.: 8, 14, 20)
+// ---------------------------------------------------------------------------
+export function horariosDoDia(c: ConfigNotificacao): number[] {
+  const horas: number[] = [];
+  for (let h = c.horaInicio; h <= c.horaFim; h += Math.max(1, c.intervaloHoras)) {
+    horas.push(h);
+  }
+  return horas;
+}
+
+// ---------------------------------------------------------------------------
 // Montagem dos avisos de cada despesa
 // ---------------------------------------------------------------------------
 type Aviso = {
-  quando: Date;
   titulo: string;
   texto: string;
   despesaId: number;
+  quando?: Date; // aviso em uma data específica
+  hora?: number; // aviso que se repete todo dia nesse horário
 };
 
-// Data do aviso = vencimento + deslocamento em dias, no horário configurado
-function dataDoAviso(iso: string, deslocamentoDias: number) {
+// Data do aviso = vencimento + deslocamento em dias, na hora indicada
+function dataDoAviso(iso: string, deslocamentoDias: number, hora: number) {
   const [ano, mes, dia] = iso.split("-").map(Number);
-  return new Date(
-    ano,
-    mes - 1,
-    dia + deslocamentoDias,
-    HORA_AVISO,
-    MINUTO_AVISO,
-    0,
-    0
-  );
+  return new Date(ano, mes - 1, dia + deslocamentoDias, hora, 0, 0, 0);
 }
 
 // Quantos dias se passaram desde o vencimento (negativo = ainda não venceu)
@@ -82,45 +94,69 @@ function diasDesdeVencimento(iso: string) {
   return Math.round((hoje.getTime() - vencimento.getTime()) / 86400000);
 }
 
-function montarAvisos(d: Despesa): Aviso[] {
+function montarAvisos(d: Despesa, c: ConfigNotificacao): Aviso[] {
   const nome = `"${d.nome}"`;
   const valor = formatarMoeda(d.valor);
+  const venceEm = dataISOparaBR(d.vencimento).slice(0, 5);
+  const horas = horariosDoDia(c);
   const diasHoje = diasDesdeVencimento(d.vencimento);
   const avisos: Aviso[] = [];
 
-  // Um dia antes: "vence amanhã"
-  if (diasHoje <= -1) {
-    avisos.push({
-      quando: dataDoAviso(d.vencimento, -1),
-      titulo: "Despesa vence amanhã",
-      texto: `A despesa ${nome} vence amanhã (${valor}).`,
-      despesaId: d.id,
-    });
+  const textoVencida = `A despesa ${nome} venceu em ${venceEm} e ainda não foi paga (${valor}).`;
+
+  // Já vencida: repete todo dia, nos horários, até ser paga
+  if (diasHoje >= 1) {
+    if (c.avisarAposVencer) {
+      for (const hora of horas) {
+        avisos.push({
+          titulo: "Despesa vencida",
+          texto: textoVencida,
+          despesaId: d.id,
+          hora,
+        });
+      }
+    }
+    return avisos;
   }
 
-  // No dia: "vence hoje"
-  if (diasHoje <= 0) {
-    avisos.push({
-      quando: dataDoAviso(d.vencimento, 0),
-      titulo: "Despesa vence hoje",
-      texto: `A despesa ${nome} vence hoje (${valor}).`,
-      despesaId: d.id,
-    });
+  // Antes do vencimento e no próprio dia
+  for (let offset = -c.diasAntes; offset <= 0; offset++) {
+    let titulo: string;
+    let texto: string;
+
+    if (offset === 0) {
+      titulo = "Despesa vence hoje";
+      texto = `A despesa ${nome} vence hoje (${valor}).`;
+    } else if (offset === -1) {
+      titulo = "Despesa vence amanhã";
+      texto = `A despesa ${nome} vence amanhã (${valor}).`;
+    } else {
+      titulo = `Despesa vence em ${-offset} dias`;
+      texto = `A despesa ${nome} vence em ${-offset} dias (${valor}).`;
+    }
+
+    for (const hora of horas) {
+      avisos.push({
+        titulo,
+        texto,
+        despesaId: d.id,
+        quando: dataDoAviso(d.vencimento, offset, hora),
+      });
+    }
   }
 
-  // Depois do vencimento: "já venceu" nos próximos dias, contando a partir de hoje
-  const primeiroDiaAtraso = Math.max(1, diasHoje);
-  for (let i = 0; i < DIAS_AVISO_ATRASO; i++) {
-    const atraso = primeiroDiaAtraso + i;
-    avisos.push({
-      quando: dataDoAviso(d.vencimento, atraso),
-      titulo: "Despesa vencida",
-      texto:
-        atraso === 1
-          ? `A despesa ${nome} já venceu (venceu ontem). Valor: ${valor}.`
-          : `A despesa ${nome} já venceu há ${atraso} dias. Valor: ${valor}.`,
-      despesaId: d.id,
-    });
+  // Ponte: cobre os primeiros dias após vencer caso o app não seja aberto
+  if (c.avisarAposVencer) {
+    for (let offset = 1; offset <= DIAS_PONTE; offset++) {
+      for (const hora of horas) {
+        avisos.push({
+          titulo: "Despesa vencida",
+          texto: textoVencida,
+          despesaId: d.id,
+          quando: dataDoAviso(d.vencimento, offset, hora),
+        });
+      }
+    }
   }
 
   return avisos;
@@ -128,7 +164,8 @@ function montarAvisos(d: Despesa): Aviso[] {
 
 // ---------------------------------------------------------------------------
 // Sincronização: apaga o que estava agendado e agenda de novo só as despesas
-// que NÃO estão pagas. Chame sempre que algo mudar (cadastrar, pagar, excluir).
+// que NÃO estão pagas. Chame sempre que algo mudar (cadastrar, pagar, excluir,
+// salvar configurações) e ao abrir o app.
 // ---------------------------------------------------------------------------
 async function executarSincronizacao() {
   const permitido = await pedirPermissaoNotificacoes();
@@ -136,16 +173,25 @@ async function executarSincronizacao() {
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (!permitido) return;
 
+  await renovarPendentes();
+  const config = await carregarConfigNotificacao();
   const despesas = (await listarDespesas()).filter((d) => !d.pago);
   const limite = Date.now() + 5000; // ignora horários que já passaram
 
-  const avisos = despesas
-    .flatMap(montarAvisos)
-    .filter((a) => a.quando.getTime() > limite)
-    .sort((a, b) => a.quando.getTime() - b.quando.getTime())
+  const todos = despesas.flatMap((d) => montarAvisos(d, config));
+
+  // Os recorrentes (despesas já vencidas) têm prioridade
+  const recorrentes = todos
+    .filter((a) => a.hora !== undefined)
     .slice(0, LIMITE_AGENDADAS);
 
-  for (const a of avisos) {
+  // O restante entra por ordem de data, até completar o limite do sistema
+  const datados = todos
+    .filter((a) => a.quando && a.quando.getTime() > limite)
+    .sort((a, b) => a.quando!.getTime() - b.quando!.getTime())
+    .slice(0, LIMITE_AGENDADAS - recorrentes.length);
+
+  for (const a of [...recorrentes, ...datados]) {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: a.titulo,
@@ -153,11 +199,19 @@ async function executarSincronizacao() {
         sound: true,
         data: { despesaId: a.despesaId },
       },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: a.quando,
-        channelId: CANAL_ID,
-      },
+      trigger:
+        a.hora !== undefined
+          ? {
+              type: Notifications.SchedulableTriggerInputTypes.DAILY,
+              hour: a.hora,
+              minute: 0,
+              channelId: CANAL_ID,
+            }
+          : {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: a.quando!,
+              channelId: CANAL_ID,
+            },
     });
   }
 }

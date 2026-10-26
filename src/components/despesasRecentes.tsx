@@ -8,6 +8,7 @@ import {
   pagarDespesa,
   renovarPendentes,
 } from "../database/dbGestor/dbDespesas";
+import { sincronizarNotificacoes } from "../services/notificacoes";
 import { dataISOparaBR, somarUmMes } from "../utils/converterData";
 
 type NomeIcone = keyof typeof Ionicons.glyphMap;
@@ -102,13 +103,13 @@ export default function DespesasRecentes() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
 
   const carregar = useCallback(async () => {
-  try {
-    await renovarPendentes();
-    setDespesas(await listarRecentes(5));
-  } catch (erro) {
-    console.error(erro);
-  }
-}, []);
+    try {
+      await renovarPendentes();
+      setDespesas(await listarRecentes(5));
+    } catch (erro) {
+      console.error(erro);
+    }
+  }, []);
 
   // Recarrega sempre que a Home volta a ficar em foco
   useFocusEffect(
@@ -117,31 +118,31 @@ export default function DespesasRecentes() {
     }, [carregar])
   );
 
-  // Toque no card: confirma e alterna entre pago / não pago
   // Toque no card: confirma o pagamento e avança o vencimento em um mês
-const confirmarPagamento = (d: Despesa) => {
-  const proximo = dataISOparaBR(somarUmMes(d.vencimento));
+  const confirmarPagamento = (d: Despesa) => {
+    const proximo = dataISOparaBR(somarUmMes(d.vencimento));
 
-  Alert.alert(
-    "Marcar como paga",
-    `Confirmar o pagamento de "${d.nome}"?\n\nO próximo vencimento será ${proximo}.`,
-    [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Confirmar",
-        onPress: async () => {
-          try {
-            await pagarDespesa(d.id);
-            await carregar();
-          } catch (erro) {
-            console.error(erro);
-            Alert.alert("Erro", "Não foi possível atualizar a despesa.");
-          }
+    Alert.alert(
+      "Marcar como paga",
+      `Confirmar o pagamento de "${d.nome}"?\n\nO próximo vencimento será ${proximo}.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Confirmar",
+          onPress: async () => {
+            try {
+              await pagarDespesa(d.id);
+              await sincronizarNotificacoes(); // cancela os avisos desta despesa
+              await carregar();
+            } catch (erro) {
+              console.error(erro);
+              Alert.alert("Erro", "Não foi possível atualizar a despesa.");
+            }
+          },
         },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
 
   return (
     <View style={styles.secao}>
@@ -156,14 +157,13 @@ const confirmarPagamento = (d: Despesa) => {
         const status = calcularStatus(d);
 
         return (
-       <TouchableOpacity
+          <TouchableOpacity
             key={d.id}
             style={styles.card}
             onPress={() => confirmarPagamento(d)}
             disabled={!!d.pago}
             activeOpacity={0.8}
           >
-                    
             <View style={[styles.circulo, { backgroundColor: icone.cor }]}>
               <Ionicons name={icone.nome} size={26} color="#FFFFFF" />
             </View>

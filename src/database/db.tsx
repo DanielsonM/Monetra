@@ -51,6 +51,17 @@ async function migrar(db: SQLite.SQLiteDatabase) {
     PRAGMA user_version = 3;
   `);
 }
+
+if (versao < 4) {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS configuracoes (
+      chave TEXT PRIMARY KEY NOT NULL,
+      valor TEXT NOT NULL
+    );
+  `);
+  await db.execAsync("PRAGMA user_version = 4");
+}
+
 }
 
 // Abre o banco uma única vez e reaproveita a conexão
