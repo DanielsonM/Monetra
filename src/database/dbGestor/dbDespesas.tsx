@@ -9,18 +9,27 @@ export type Despesa = {
   vencimento: string; // AAAA-MM-DD
   pago: number; // 0 = não pago, 1 = pago
   observacao: string | null;
+  fixa: number; // 0 = única, 1 = fixa (repete todo mês até ser removida)
   criado_em: string;
 };
 
 export async function inserirDespesa(
-  d: Omit<Despesa, "id" | "criado_em" | "pago" | "observacao"> & {
+  d: Omit<Despesa, "id" | "criado_em" | "pago" | "observacao" | "fixa"> & {
     observacao?: string;
+    fixa?: boolean;
   }
 ) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO despesas (nome, valor, tipo, vencimento, observacao) VALUES (?, ?, ?, ?, ?)",
-    [d.nome, d.valor, d.tipo, d.vencimento, d.observacao?.trim() || null]
+    "INSERT INTO despesas (nome, valor, tipo, vencimento, observacao, fixa) VALUES (?, ?, ?, ?, ?, ?)",
+    [
+      d.nome,
+      d.valor,
+      d.tipo,
+      d.vencimento,
+      d.observacao?.trim() || null,
+      d.fixa ? 1 : 0,
+    ]
   );
   return r.lastInsertRowId;
 }
@@ -29,6 +38,42 @@ export async function listarDespesas(): Promise<Despesa[]> {
   const db = await getDb();
   return db.getAllAsync<Despesa>(
     "SELECT * FROM despesas ORDER BY vencimento ASC"
+  );
+}
+
+// Busca uma despesa pelo id (usado para abrir o cadastro em modo edição)
+export async function buscarDespesa(id: number): Promise<Despesa | null> {
+  const db = await getDb();
+  return db.getFirstAsync<Despesa>("SELECT * FROM despesas WHERE id = ?", [
+    id,
+  ]);
+}
+
+// Atualiza os dados de uma despesa já cadastrada.
+// Não mexe no campo "pago": o pagamento continua sendo feito por pagarDespesa.
+export async function atualizarDespesa(
+  id: number,
+  d: {
+    nome: string;
+    valor: number;
+    tipo: string;
+    vencimento: string;
+    observacao?: string;
+    fixa?: boolean;
+  }
+) {
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, vencimento = ?, observacao = ?, fixa = ? WHERE id = ?",
+    [
+      d.nome,
+      d.valor,
+      d.tipo,
+      d.vencimento,
+      d.observacao?.trim() || null,
+      d.fixa ? 1 : 0,
+      id,
+    ]
   );
 }
 
@@ -44,8 +89,9 @@ export async function listarRecentes(limite = 5): Promise<Despesa[]> {
   );
 }
 
-// Registra o pagamento no histórico, marca como paga e empurra o vencimento
-// para o mês seguinte (tudo junto: ou grava os dois, ou nenhum)
+// Registra o pagamento no histórico e marca como paga.
+// Se for despesa fixa, empurra o vencimento para o mês seguinte
+// (tudo junto: ou grava tudo, ou nada)
 export async function pagarDespesa(id: number) {
   const db = await getDb();
   const d = await db.getFirstAsync<Despesa>(
@@ -60,19 +106,24 @@ export async function pagarDespesa(id: number) {
       [d.id, d.nome, d.tipo, d.valor, d.vencimento]
     );
 
-    await db.runAsync(
-      "UPDATE despesas SET pago = 1, vencimento = ? WHERE id = ?",
-      [somarUmMes(d.vencimento), id]
-    );
+    if (d.fixa) {
+      await db.runAsync(
+        "UPDATE despesas SET pago = 1, vencimento = ? WHERE id = ?",
+        [somarUmMes(d.vencimento), id]
+      );
+    } else {
+      await db.runAsync("UPDATE despesas SET pago = 1 WHERE id = ?", [id]);
+    }
   });
 }
 
-// Despesas pagas cujo novo vencimento já caiu no mês atual voltam a "não pago"
+// Despesas fixas pagas cujo novo vencimento já caiu no mês atual voltam a "não pago"
 export async function renovarPendentes() {
   const db = await getDb();
   await db.runAsync(
     `UPDATE despesas SET pago = 0
      WHERE pago = 1
+       AND fixa = 1
        AND vencimento < date('now', 'localtime', 'start of month', '+1 month')`
   );
 }

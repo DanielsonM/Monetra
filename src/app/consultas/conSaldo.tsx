@@ -2,18 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    type Saldo,
-    excluirSaldo,
-    listarSaldos,
+  type Saldo,
+  excluirSaldo,
+  listarSaldos,
 } from "../../database/dbGestor/dbSaldos";
 import { dataISOparaBR } from "../../utils/converterData";
 
@@ -46,6 +46,19 @@ export default function ConSaldo() {
     } else {
       router.replace("/home/home");
     }
+  };
+
+  // Abre o cadastro vazio, para um novo saldo
+  const adicionar = () => {
+    router.push("/cadastros/cadSaldo" as never);
+  };
+
+  // Abre o cadastro em modo edição, com os dados do saldo carregados
+  const editar = (saldo: Saldo) => {
+    router.push({
+      pathname: "/cadastros/cadSaldo",
+      params: { id: String(saldo.id) },
+    } as never);
   };
 
   const carregar = useCallback(async () => {
@@ -93,7 +106,11 @@ export default function ConSaldo() {
     const icone = ICONES[item.tipo] ?? ICONE_PADRAO;
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => editar(item)}
+      >
         <View style={[styles.circulo, { backgroundColor: icone.cor }]}>
           <Ionicons name={icone.nome} size={24} color="#FFFFFF" />
         </View>
@@ -115,7 +132,7 @@ export default function ConSaldo() {
             <Ionicons name="trash-outline" size={20} color="#D32F2F" />
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -129,11 +146,21 @@ export default function ConSaldo() {
         <Text style={styles.titulo}>Saldos</Text>
       </View>
 
-      {/* Resumo */}
+      {/* Resumo com o botão "+" para adicionar saldo */}
       <View style={styles.resumo}>
-        <Text style={styles.resumoLabel}>
-          Total ({saldos.length} {saldos.length === 1 ? "saldo" : "saldos"})
-        </Text>
+        <View style={styles.resumoTopo}>
+          <Text style={styles.resumoLabel}>
+            Total ({saldos.length} {saldos.length === 1 ? "saldo" : "saldos"})
+          </Text>
+
+          <TouchableOpacity
+            onPress={adicionar}
+            hitSlop={12}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.resumoValor}>{formatarMoeda(total)}</Text>
       </View>
 
@@ -180,6 +207,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 5,
     elevation: 4,
+  },
+  resumoTopo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   resumoLabel: { fontSize: 14, color: "#E8F5E9" },
   resumoValor: {

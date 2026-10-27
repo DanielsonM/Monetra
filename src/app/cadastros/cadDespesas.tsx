@@ -1,12 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -14,9 +19,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { inserirDespesa } from "../../database/dbGestor/dbDespesas";
+import {
+  atualizarDespesa,
+  buscarDespesa,
+  inserirDespesa,
+  pagarDespesa,
+} from "../../database/dbGestor/dbDespesas";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
-import { dataBRparaISO } from "../../utils/converterData";
 
 // Edite as opções do combobox aqui
 const TIPOS = [
@@ -51,19 +60,57 @@ const TIPOS = [
   "Outros",
 ];
 
+// Formatadores locais (não usam toISOString, que converte para UTC
+// e pode mudar o dia dependendo do horário)
+const paraBR = (d: Date) =>
+  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+
+const paraISO = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+// Converte "AAAA-MM-DD" em Date no horário local
+const isoParaDate = (iso: string) => {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  return new Date(ano, mes - 1, dia);
+};
+
+// Máscara de moeda: o usuário digita só números e o valor é montado
+// da direita para a esquerda (5 → 0,05 | 700 → 7,00 | 123456 → 1.234,56)
+const formatarMoeda = (texto: string) => {
+  const digitos = texto.replace(/\D/g, "").replace(/^0+/, "");
+  if (!digitos) return "";
+  const preenchido = digitos.padStart(3, "0");
+  const inteiros = preenchido
+    .slice(0, -2)
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${inteiros},${preenchido.slice(-2)}`;
+};
+
+// Converte "1.234,56" em 1234.56
+const moedaParaNumero = (texto: string) =>
+  parseFloat(texto.replace(/\./g, "").replace(",", "."));
+
 export default function CadDespesas() {
   const router = useRouter();
   const { height: alturaTela } = useWindowDimensions();
   const campoTipoRef = useRef<View>(null);
 
+  // Se vier um "id" na rota, a tela abre em modo edição
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const idEdicao = id ? Number(id) : null;
+  const editando = idEdicao !== null;
+
   const [nome, setNome] = useState("");
   const [valor, setValor] = useState("");
   const [tipo, setTipo] = useState("");
-  const [vencimento, setVencimento] = useState("");
+  const [vencimento, setVencimento] = useState<Date | null>(null);
   const [observacao, setObservacao] = useState("");
+  const [jaPaga, setJaPaga] = useState(false);
+  const [fixa, setFixa] = useState(false);
 
   const [tipoAberto, setTipoAberto] = useState(false);
   const [posTipo, setPosTipo] = useState({ top: 0, left: 0, width: 0 });
+  const [mostrarData, setMostrarData] = useState(false);
 
   // Altura máxima da lista: o que sobra da tela, limitado a 320
   const alturaMaxLista = Math.min(320, alturaTela - posTipo.top - 24);
@@ -75,6 +122,40 @@ export default function CadDespesas() {
       router.replace("/home/home");
     }
   };
+
+  // Modo edição: carrega a despesa e preenche os campos
+  useEffect(() => {
+    if (idEdicao === null) return;
+
+    let ativo = true;
+
+    buscarDespesa(idEdicao)
+      .then((d) => {
+        if (!ativo) return;
+
+        if (!d) {
+          Alert.alert("Erro", "Despesa não encontrada.");
+          voltar();
+          return;
+        }
+
+        setNome(d.nome);
+        setValor(formatarMoeda(String(Math.round(d.valor * 100))));
+        setTipo(d.tipo);
+        setVencimento(isoParaDate(d.vencimento));
+        setObservacao(d.observacao ?? "");
+        setFixa(d.fixa === 1);
+      })
+      .catch((erro) => {
+        console.error(erro);
+        Alert.alert("Erro", "Não foi possível carregar a despesa.");
+      });
+
+    return () => {
+      ativo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idEdicao]);
 
   const abrirTipo = () => {
     campoTipoRef.current?.measureInWindow((x, y, w, h) => {
@@ -88,28 +169,48 @@ export default function CadDespesas() {
     setTipoAberto(false);
   };
 
-  const salvar = async () => {
-    const valorNumero = parseFloat(valor.replace(",", "."));
+  // Chamado quando o usuário escolhe (ou cancela) no seletor de data
+  const aoMudarData = (evento: DateTimePickerEvent, data?: Date) => {
+    setMostrarData(false);
+    if (evento.type === "set" && data) setVencimento(data);
+  };
 
-    if (!nome.trim() || isNaN(valorNumero) || !tipo || !vencimento.trim()) {
+  const salvar = async () => {
+    const valorNumero = moedaParaNumero(valor);
+
+    if (!nome.trim() || isNaN(valorNumero) || !tipo || !vencimento) {
       Alert.alert("Atenção", "Preencha nome, valor, tipo e vencimento.");
       return;
     }
 
-    const vencimentoISO = dataBRparaISO(vencimento);
-    if (!vencimentoISO) {
-      Alert.alert("Atenção", "Data inválida. Use o formato DD/MM/AAAA.");
-      return;
-    }
+    const dados = {
+      nome: nome.trim(),
+      valor: valorNumero,
+      tipo,
+      vencimento: paraISO(vencimento),
+      observacao,
+      fixa,
+    };
 
     try {
-      await inserirDespesa({
-        nome: nome.trim(),
-        valor: valorNumero,
-        tipo,
-        vencimento: vencimentoISO,
-        observacao,
-      });
+      // Modo edição: só atualiza os dados (o pagamento continua pelo botão "pagar")
+      if (idEdicao !== null) {
+        await atualizarDespesa(idEdicao, dados);
+        await sincronizarNotificacoes();
+
+        Alert.alert("Pronto", "Despesa atualizada!");
+        voltar();
+        return;
+      }
+
+      const novoId = await inserirDespesa(dados);
+
+      // Se já está paga: usa o mesmo fluxo do botão "pagar"
+      // (grava no histórico e marca como paga; se for fixa, leva o
+      // vencimento para o mês seguinte)
+      if (jaPaga) {
+        await pagarDespesa(novoId);
+      }
 
       // Agenda os avisos de vencimento da nova despesa
       await sincronizarNotificacoes();
@@ -129,7 +230,9 @@ export default function CadDespesas() {
         <TouchableOpacity onPress={voltar} hitSlop={10} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
-        <Text style={styles.titulo}>Nova despesa</Text>
+        <Text style={styles.titulo}>
+          {editando ? "Editar despesa" : "Nova despesa"}
+        </Text>
       </View>
 
       <Text style={styles.label}>Nome</Text>
@@ -144,9 +247,9 @@ export default function CadDespesas() {
       <TextInput
         style={styles.input}
         placeholder="0,00"
-        keyboardType="decimal-pad"
+        keyboardType="number-pad"
         value={valor}
-        onChangeText={setValor}
+        onChangeText={(texto) => setValor(formatarMoeda(texto))}
       />
 
       <Text style={styles.label}>Tipo</Text>
@@ -168,14 +271,64 @@ export default function CadDespesas() {
       </View>
 
       <Text style={styles.label}>Vencimento</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="DD/MM/AAAA"
-        keyboardType="numbers-and-punctuation"
-        maxLength={10}
-        value={vencimento}
-        onChangeText={setVencimento}
-      />
+      <TouchableOpacity
+        style={styles.combo}
+        onPress={() => setMostrarData(true)}
+        activeOpacity={0.7}
+      >
+        <Text style={vencimento ? styles.comboTexto : styles.comboPlaceholder}>
+          {vencimento ? paraBR(vencimento) : "Selecione a data"}
+        </Text>
+        <Ionicons name="calendar-outline" size={20} color="#666666" />
+      </TouchableOpacity>
+
+      {mostrarData && (
+        <DateTimePicker
+          value={vencimento ?? new Date()}
+          mode="date"
+          display={Platform.OS === "ios" ? "inline" : "default"}
+          locale="pt-BR"
+          onChange={aoMudarData}
+        />
+      )}
+
+      {/* Despesa fixa: se repete todo mês até o usuário removê-la */}
+      <View style={styles.linhaSwitch}>
+        <View style={styles.textosSwitch}>
+          <Text style={styles.switchTitulo}>Despesa fixa</Text>
+          <Text style={styles.switchSubtitulo}>
+            {fixa
+              ? "Se repete todo mês até você removê-la"
+              : "Despesa única, não se repete"}
+          </Text>
+        </View>
+        <Switch
+          value={fixa}
+          onValueChange={setFixa}
+          trackColor={{ false: "#D0D0D0", true: "#A5D6A7" }}
+          thumbColor={fixa ? "#2E7D32" : "#F4F4F4"}
+        />
+      </View>
+
+      {/* Marca a despesa como paga já no cadastro (só em despesa nova) */}
+      {!editando && (
+        <View style={styles.linhaSwitch}>
+          <View style={styles.textosSwitch}>
+            <Text style={styles.switchTitulo}>Despesa paga</Text>
+            {/*<Text style={styles.switchSubtitulo}>
+              {jaPaga
+                ? "Paga — próximo vencimento no mês seguinte"
+                : "Pendente"}
+            </Text>*/}
+          </View>
+          <Switch
+            value={jaPaga}
+            onValueChange={setJaPaga}
+            trackColor={{ false: "#D0D0D0", true: "#A5D6A7" }}
+            thumbColor={jaPaga ? "#2E7D32" : "#F4F4F4"}
+          />
+        </View>
+      )}
 
       <Text style={styles.label}>Observação (opcional)</Text>
       <TextInput
@@ -188,7 +341,9 @@ export default function CadDespesas() {
       <Text style={styles.contador}>{observacao.length}/30</Text>
 
       <TouchableOpacity style={styles.botao} onPress={salvar}>
-        <Text style={styles.botaoTexto}>Salvar</Text>
+        <Text style={styles.botaoTexto}>
+          {editando ? "Salvar alterações" : "Salvar"}
+        </Text>
       </TouchableOpacity>
 
       {/* Lista do combobox */}
@@ -262,6 +417,21 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
 
+  // Switches "Despesa fixa" e "Despesa paga"
+  linhaSwitch: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  textosSwitch: { flex: 1, paddingRight: 10 },
+  switchTitulo: { fontSize: 16, color: "#1A1A1A" },
+  switchSubtitulo: { fontSize: 12, color: "#999999", marginTop: 2 },
+
   // Contador de caracteres da observação
   contador: {
     fontSize: 12,
@@ -270,7 +440,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Combobox
+  // Combobox (também usado no campo de data)
   combo: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,

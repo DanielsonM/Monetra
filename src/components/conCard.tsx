@@ -2,6 +2,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { totalDespesas } from "../database/dbGestor/dbDespesas";
+import { totalReceitasRecebidas } from "../database/dbGestor/dbReceitas";
 import { totalSaldo } from "../database/dbGestor/dbSaldos";
 
 // Formata valores para Real brasileiro
@@ -10,6 +11,7 @@ const formatarMoeda = (valor: number) =>
 
 export default function ConCard() {
   const [somaSaldos, setSomaSaldos] = useState(0);
+  const [somaReceitas, setSomaReceitas] = useState(0);
   const [somaDespesas, setSomaDespesas] = useState(0);
 
   // Recarrega sempre que a Home volta a ficar em foco (ex.: depois de cadastrar)
@@ -19,12 +21,14 @@ export default function ConCard() {
 
       (async () => {
         try {
-          const [saldos, despesas] = await Promise.all([
+          const [saldos, receitas, despesas] = await Promise.all([
             totalSaldo(),
+            totalReceitasRecebidas(),
             totalDespesas(),
           ]);
           if (ativo) {
             setSomaSaldos(saldos);
+            setSomaReceitas(receitas);
             setSomaDespesas(despesas);
           }
         } catch (erro) {
@@ -38,8 +42,8 @@ export default function ConCard() {
     }, [])
   );
 
-  // Saldo disponível = total de saldos cadastrados - total de despesas
-  const saldoDisponivel = somaSaldos - somaDespesas;
+  // Saldo disponível = saldos cadastrados + receitas já recebidas - despesas
+  const saldoDisponivel = somaSaldos + somaReceitas - somaDespesas;
   const saldoNegativo = saldoDisponivel < 0;
 
   return (

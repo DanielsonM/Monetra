@@ -2,18 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    type Despesa,
-    excluirDespesa,
-    listarDespesas,
+  type Despesa,
+  excluirDespesa,
+  listarDespesas,
 } from "../../database/dbGestor/dbDespesas";
 import { dataISOparaBR } from "../../utils/converterData";
 
@@ -34,6 +34,19 @@ export default function ConDespesa() {
     } else {
       router.replace("/home/home");
     }
+  };
+
+  // Abre o cadastro vazio, para uma nova despesa
+  const adicionar = () => {
+    router.push("/cadastros/cadDespesas" as never);
+  };
+
+  // Abre o cadastro em modo edição, com os dados da despesa carregados
+  const editar = (despesa: Despesa) => {
+    router.push({
+      pathname: "/cadastros/cadDespesas",
+      params: { id: String(despesa.id) },
+    } as never);
   };
 
   const carregar = useCallback(async () => {
@@ -78,7 +91,11 @@ export default function ConDespesa() {
   };
 
   const renderItem = ({ item }: { item: Despesa }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() => editar(item)}
+    >
       <View style={styles.cardInfo}>
         <Text style={styles.nome}>{item.nome}</Text>
         <Text style={styles.detalhe}>
@@ -96,7 +113,7 @@ export default function ConDespesa() {
           <Ionicons name="trash-outline" size={20} color="#D32F2F" />
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -109,11 +126,22 @@ export default function ConDespesa() {
         <Text style={styles.titulo}>Despesas</Text>
       </View>
 
-      {/* Resumo */}
+      {/* Resumo com o botão "+" para adicionar despesa */}
       <View style={styles.resumo}>
-        <Text style={styles.resumoLabel}>
-          Total ({despesas.length} {despesas.length === 1 ? "despesa" : "despesas"})
-        </Text>
+        <View style={styles.resumoTopo}>
+          <Text style={styles.resumoLabel}>
+            Total ({despesas.length}{" "}
+            {despesas.length === 1 ? "despesa" : "despesas"})
+          </Text>
+
+          <TouchableOpacity
+            onPress={adicionar}
+            hitSlop={12}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.resumoValor}>{formatarMoeda(total)}</Text>
       </View>
 
@@ -160,6 +188,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 5,
     elevation: 4,
+  },
+  resumoTopo: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   resumoLabel: { fontSize: 14, color: "#FFEBEE" },
   resumoValor: {
