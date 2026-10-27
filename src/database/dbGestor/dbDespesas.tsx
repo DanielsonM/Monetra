@@ -44,19 +44,27 @@ export async function listarRecentes(limite = 5): Promise<Despesa[]> {
   );
 }
 
-// Marca como paga e empurra o vencimento para o mês seguinte
+// Registra o pagamento no histórico, marca como paga e empurra o vencimento
+// para o mês seguinte (tudo junto: ou grava os dois, ou nenhum)
 export async function pagarDespesa(id: number) {
   const db = await getDb();
-  const d = await db.getFirstAsync<{ vencimento: string }>(
-    "SELECT vencimento FROM despesas WHERE id = ?",
+  const d = await db.getFirstAsync<Despesa>(
+    "SELECT * FROM despesas WHERE id = ?",
     [id]
   );
   if (!d) return;
 
-  await db.runAsync(
-    "UPDATE despesas SET pago = 1, vencimento = ? WHERE id = ?",
-    [somarUmMes(d.vencimento), id]
-  );
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      "INSERT INTO pagamentos (despesa_id, nome, tipo, valor, vencimento) VALUES (?, ?, ?, ?, ?)",
+      [d.id, d.nome, d.tipo, d.valor, d.vencimento]
+    );
+
+    await db.runAsync(
+      "UPDATE despesas SET pago = 1, vencimento = ? WHERE id = ?",
+      [somarUmMes(d.vencimento), id]
+    );
+  });
 }
 
 // Despesas pagas cujo novo vencimento já caiu no mês atual voltam a "não pago"

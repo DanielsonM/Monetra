@@ -32,6 +32,16 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       chave TEXT PRIMARY KEY NOT NULL,
       valor TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS pagamentos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      despesa_id INTEGER,
+      nome TEXT NOT NULL,
+      tipo TEXT NOT NULL,
+      valor REAL NOT NULL,
+      vencimento TEXT NOT NULL,
+      data_pagamento TEXT NOT NULL DEFAULT (date('now', 'localtime'))
+    );
   `);
 }
 
