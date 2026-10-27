@@ -5,7 +5,8 @@ export type Receita = {
   nome: string;
   valor: number;
   tipo: string;
-  vencimento: string; // AAAA-MM-DD (data prevista para a receita entrar)
+  data: string; // AAAA-MM-DD (data de entrada da receita)
+  vencimento: string; // AAAA-MM-DD (data de vencimento)
   observacao: string | null;
   recebido: number; // 0 = a receber, 1 = já recebida (entra no saldo disponível)
   criado_em: string;
@@ -15,6 +16,7 @@ export type DadosReceita = {
   nome: string;
   valor: number;
   tipo: string;
+  data: string;
   vencimento: string;
   observacao?: string;
   recebido?: boolean;
@@ -23,11 +25,12 @@ export type DadosReceita = {
 export async function inserirReceita(d: DadosReceita) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO receitas (nome, valor, tipo, vencimento, observacao, recebido) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [
       d.nome,
       d.valor,
       d.tipo,
+      d.data,
       d.vencimento,
       d.observacao?.trim() || null,
       d.recebido ? 1 : 0,
@@ -36,22 +39,31 @@ export async function inserirReceita(d: DadosReceita) {
   return r.lastInsertRowId;
 }
 
-// Mais recentes primeiro
+// Mais recentes primeiro (pela data de entrada)
 export async function listarReceitas(): Promise<Receita[]> {
   const db = await getDb();
   return db.getAllAsync<Receita>(
-    "SELECT * FROM receitas ORDER BY vencimento DESC, id DESC"
+    "SELECT * FROM receitas ORDER BY data DESC, id DESC"
   );
+}
+
+// Busca uma receita pelo id (usado para abrir o cadastro em modo edição)
+export async function buscarReceita(id: number): Promise<Receita | null> {
+  const db = await getDb();
+  return db.getFirstAsync<Receita>("SELECT * FROM receitas WHERE id = ?", [
+    id,
+  ]);
 }
 
 export async function atualizarReceita(id: number, d: DadosReceita) {
   const db = await getDb();
   await db.runAsync(
-    "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, vencimento = ?, observacao = ?, recebido = ? WHERE id = ?",
+    "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ? WHERE id = ?",
     [
       d.nome,
       d.valor,
       d.tipo,
+      d.data,
       d.vencimento,
       d.observacao?.trim() || null,
       d.recebido ? 1 : 0,

@@ -50,6 +50,7 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       nome TEXT NOT NULL,
       valor REAL NOT NULL,
       tipo TEXT NOT NULL,
+      data TEXT NOT NULL,
       vencimento TEXT NOT NULL,
       observacao TEXT,
       recebido INTEGER NOT NULL DEFAULT 0,
@@ -73,15 +74,24 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
   const colunasReceitas = await db.getAllAsync<{ name: string }>(
     "PRAGMA table_info(receitas)"
   );
+  const temData = colunasReceitas.some((c) => c.name === "data");
+  const temVencimento = colunasReceitas.some((c) => c.name === "vencimento");
 
-  // A coluna "data" passou a se chamar "vencimento" (os valores são mantidos)
-  if (
-    colunasReceitas.some((c) => c.name === "data") &&
-    !colunasReceitas.some((c) => c.name === "vencimento")
-  ) {
+  // Bancos antigos só tinham "data": cria o "vencimento" copiando a data
+  if (!temVencimento) {
     await db.execAsync(
-      "ALTER TABLE receitas RENAME COLUMN data TO vencimento;"
+      "ALTER TABLE receitas ADD COLUMN vencimento TEXT NOT NULL DEFAULT '';"
     );
+    await db.execAsync("UPDATE receitas SET vencimento = data;");
+  }
+
+  // Bancos em que "data" foi renomeada para "vencimento": recria a "data"
+  // (data de entrada) copiando o vencimento
+  if (!temData) {
+    await db.execAsync(
+      "ALTER TABLE receitas ADD COLUMN data TEXT NOT NULL DEFAULT '';"
+    );
+    await db.execAsync("UPDATE receitas SET data = vencimento;");
   }
 
   // Adiciona a coluna "recebido" (receitas já cadastradas ficam como "não recebidas")
