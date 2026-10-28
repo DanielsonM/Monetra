@@ -136,6 +136,15 @@ export async function totalDespesas(): Promise<number> {
   return r?.total ?? 0;
 }
 
+// Soma só das despesas já pagas: é o valor que sai do saldo disponível
+export async function totalDespesasPagas(): Promise<number> {
+  const db = await getDb();
+  const r = await db.getFirstAsync<{ total: number | null }>(
+    "SELECT SUM(valor) AS total FROM despesas WHERE pago = 1"
+  );
+  return r?.total ?? 0;
+}
+
 export async function excluirDespesa(id: number) {
   const db = await getDb();
   await db.runAsync("DELETE FROM despesas WHERE id = ?", [id]);

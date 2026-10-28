@@ -3,16 +3,19 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -71,6 +74,8 @@ const isoParaDate = (iso: string) => {
 
 export default function CadReceita() {
   const router = useRouter();
+  const { height: alturaTela } = useWindowDimensions();
+  const campoTipoRef = useRef<View>(null);
 
   // Se vier um "id" na rota, a tela abre em modo edição
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -90,6 +95,13 @@ export default function CadReceita() {
   const [observacao, setObservacao] = useState("");
   const [campoData, setCampoData] = useState<CampoData | null>(null);
   const [salvando, setSalvando] = useState(false);
+
+  // Combobox de tipo
+  const [tipoAberto, setTipoAberto] = useState(false);
+  const [posTipo, setPosTipo] = useState({ top: 0, left: 0, width: 0 });
+
+  // Altura máxima da lista: o que sobra da tela, limitado a 320
+  const alturaMaxLista = Math.min(320, alturaTela - posTipo.top - 24);
 
   // Salário é dinheiro garantido: sempre conta como recebido
   const ehSalario = tipo === TIPO_SALARIO;
@@ -136,6 +148,18 @@ export default function CadReceita() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idEdicao]);
+
+  const abrirTipo = () => {
+    campoTipoRef.current?.measureInWindow((x, y, w, h) => {
+      setPosTipo({ top: y + h + 4, left: x, width: w });
+      setTipoAberto(true);
+    });
+  };
+
+  const escolherTipo = (t: string) => {
+    setTipo(t);
+    setTipoAberto(false);
+  };
 
   // Chamado quando o usuário escolhe (ou cancela) no seletor de data
   const aoMudarData = (evento: DateTimePickerEvent, dataEscolhida?: Date) => {
@@ -247,21 +271,21 @@ export default function CadReceita() {
         />
 
         <Text style={styles.label}>Tipo</Text>
-        <View style={styles.chips}>
-          {TIPOS_RECEITA.map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.chip, tipo === t && styles.chipAtivo]}
-              onPress={() => setTipo(t)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[styles.chipTexto, tipo === t && styles.chipTextoAtivo]}
-              >
-                {t}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View ref={campoTipoRef} collapsable={false}>
+          <TouchableOpacity
+            style={styles.combo}
+            onPress={abrirTipo}
+            activeOpacity={0.7}
+          >
+            <Text style={tipo ? styles.comboTexto : styles.comboPlaceholder}>
+              {tipo || "Selecione o tipo"}
+            </Text>
+            <Ionicons
+              name={tipoAberto ? "chevron-up" : "chevron-down"}
+              size={20}
+              color="#666666"
+            />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.label}>Data de entrada</Text>
@@ -333,6 +357,52 @@ export default function CadReceita() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Lista do combobox de tipo */}
+      <Modal
+        transparent
+        visible={tipoAberto}
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setTipoAberto(false)}
+      >
+        {/* Toque fora fecha a lista */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => setTipoAberto(false)}
+        />
+
+        <View
+          style={[
+            styles.lista,
+            {
+              top: posTipo.top,
+              left: posTipo.left,
+              width: posTipo.width,
+              maxHeight: alturaMaxLista,
+            },
+          ]}
+        >
+          <ScrollView
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+          >
+            {TIPOS_RECEITA.map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.opcao, tipo === t && styles.opcaoAtiva]}
+                onPress={() => escolherTipo(t)}
+              >
+                <Text style={styles.opcaoTexto}>{t}</Text>
+                {tipo === t && (
+                  <Ionicons name="checkmark" size={20} color="#00897B" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -360,21 +430,29 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
 
-  // Seleção do tipo (chips)
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
+  // Lista do combobox de tipo
+  lista: {
+    position: "absolute",
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 8,
+    shadowColor: "#000000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
-  chipAtivo: { backgroundColor: "#E0F2F1", borderColor: "#00897B" },
-  chipTexto: { fontSize: 14, color: "#1A1A1A" },
-  chipTextoAtivo: { color: "#00695C", fontWeight: "bold" },
+  opcao: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  opcaoAtiva: { backgroundColor: "#E0F2F1" },
+  opcaoTexto: { fontSize: 16, color: "#1A1A1A" },
 
-  // Campos de data
+  // Campos de data e combobox de tipo
   combo: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,

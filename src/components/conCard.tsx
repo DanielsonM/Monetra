@@ -1,7 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { totalDespesas } from "../database/dbGestor/dbDespesas";
+import { totalDespesasPagas } from "../database/dbGestor/dbDespesas";
 import { totalReceitasRecebidas } from "../database/dbGestor/dbReceitas";
 
 // Formata valores para Real brasileiro
@@ -21,7 +21,7 @@ export default function ConCard() {
         try {
           const [receitas, despesas] = await Promise.all([
             totalReceitasRecebidas(),
-            totalDespesas(),
+            totalDespesasPagas(),
           ]);
           if (ativo) {
             setSomaReceitas(receitas);
@@ -38,7 +38,8 @@ export default function ConCard() {
     }, [])
   );
 
-  // Saldo disponível = receitas já recebidas - total de despesas
+  // Saldo disponível = receitas já recebidas - despesas já pagas
+  // (despesa pendente ainda não debita do saldo)
   const saldoDisponivel = somaReceitas - somaDespesas;
   const saldoNegativo = saldoDisponivel < 0;
 
