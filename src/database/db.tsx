@@ -7,6 +7,8 @@ let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 // Cria as tabelas (se ainda não existirem) já com todas as colunas.
 // Colunas novas entram por migração no final desta função, então não
 // é preciso limpar os dados do app.
+// Obs.: a tabela "saldos" não é mais criada. Em quem já tinha o app ela
+// continua existindo no banco, sem uso, e os dados dela ficam guardados.
 async function criarTabelas(db: SQLite.SQLiteDatabase) {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -20,13 +22,6 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       pago INTEGER NOT NULL DEFAULT 0,
       observacao TEXT,
       fixa INTEGER NOT NULL DEFAULT 0,
-      criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-
-    CREATE TABLE IF NOT EXISTS saldos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      valor REAL NOT NULL,
-      tipo TEXT NOT NULL,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -100,6 +95,12 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       "ALTER TABLE receitas ADD COLUMN recebido INTEGER NOT NULL DEFAULT 0;"
     );
   }
+
+  // Salário é dinheiro garantido: sempre conta como recebido (entra no saldo).
+  // Isso também ajusta os salários que já estavam cadastrados como "a receber"
+  await db.execAsync(
+    "UPDATE receitas SET recebido = 1 WHERE tipo = 'Salário' AND recebido = 0;"
+  );
 }
 
 // Abre o banco uma única vez e reaproveita a conexão

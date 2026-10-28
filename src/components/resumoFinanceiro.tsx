@@ -3,7 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { totalDespesas } from "../database/dbGestor/dbDespesas";
-import { totalSaldoPorTipo } from "../database/dbGestor/dbSaldos";
+import { totalReceitas } from "../database/dbGestor/dbReceitas";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
@@ -53,7 +53,7 @@ function CardResumo({
 }
 
 export default function ResumoFinanceiro() {
-  const [salarioMensal, setSalarioMensal] = useState(0);
+  const [receitasTotais, setReceitasTotais] = useState(0);
   const [despesasTotais, setDespesasTotais] = useState(0);
 
   // Atualiza os valores sempre que a tela volta a ficar em foco
@@ -61,10 +61,10 @@ export default function ResumoFinanceiro() {
     useCallback(() => {
       let ativo = true;
 
-      Promise.all([totalSaldoPorTipo("Salário"), totalDespesas()])
-        .then(([salario, despesas]) => {
+      Promise.all([totalReceitas(), totalDespesas()])
+        .then(([receitas, despesas]) => {
           if (ativo) {
-            setSalarioMensal(salario);
+            setReceitasTotais(receitas);
             setDespesasTotais(despesas);
           }
         })
@@ -79,10 +79,10 @@ export default function ResumoFinanceiro() {
   return (
     <View>
       <CardResumo
-        titulo="Meu dinheiro"
-        valor={salarioMensal}
-        rotaConsulta="/consultas/conSaldo"
-        rotaCadastro="/cadastros/cadSaldo"
+        titulo="Receitas totais"
+        valor={receitasTotais}
+        rotaConsulta="/consultas/conReceitas"
+        rotaCadastro="/cadastros/cadReceita"
         cor="#00897B"
       />
 

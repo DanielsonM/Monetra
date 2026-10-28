@@ -3,14 +3,12 @@ import { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { totalDespesas } from "../database/dbGestor/dbDespesas";
 import { totalReceitasRecebidas } from "../database/dbGestor/dbReceitas";
-import { totalSaldo } from "../database/dbGestor/dbSaldos";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
   valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function ConCard() {
-  const [somaSaldos, setSomaSaldos] = useState(0);
   const [somaReceitas, setSomaReceitas] = useState(0);
   const [somaDespesas, setSomaDespesas] = useState(0);
 
@@ -21,13 +19,11 @@ export default function ConCard() {
 
       (async () => {
         try {
-          const [saldos, receitas, despesas] = await Promise.all([
-            totalSaldo(),
+          const [receitas, despesas] = await Promise.all([
             totalReceitasRecebidas(),
             totalDespesas(),
           ]);
           if (ativo) {
-            setSomaSaldos(saldos);
             setSomaReceitas(receitas);
             setSomaDespesas(despesas);
           }
@@ -42,8 +38,8 @@ export default function ConCard() {
     }, [])
   );
 
-  // Saldo disponível = saldos cadastrados + receitas já recebidas - despesas
-  const saldoDisponivel = somaSaldos + somaReceitas - somaDespesas;
+  // Saldo disponível = receitas já recebidas - total de despesas
+  const saldoDisponivel = somaReceitas - somaDespesas;
   const saldoNegativo = saldoDisponivel < 0;
 
   return (

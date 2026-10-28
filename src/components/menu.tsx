@@ -79,10 +79,10 @@ export default function Menu() {
               <View style={styles.submenu}>
                 <TouchableOpacity
                   style={styles.submenuBotao}
-                  onPress={() => navegarPara("/cadastros/cadSaldo")}
+                  onPress={() => navegarPara("/cadastros/cadReceita")}
                 >
-                  <IconeMenu nome="wallet-outline" cor="#00897B" pequeno />
-                  <Text style={styles.submenuItem}>Saldo</Text>
+                  <IconeMenu nome="cash-outline" cor="#2E7D32" pequeno />
+                  <Text style={styles.submenuItem}>Receitas</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -91,14 +91,6 @@ export default function Menu() {
                 >
                   <IconeMenu nome="receipt-outline" cor="#D32F2F" pequeno />
                   <Text style={styles.submenuItem}>Despesas</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.submenuBotao}
-                  onPress={() => navegarPara("/cadastros/cadReceita")}
-                >
-                  <IconeMenu nome="cash-outline" cor="#2E7D32" pequeno />
-                  <Text style={styles.submenuItem}>Receitas</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -116,10 +108,10 @@ export default function Menu() {
               <View style={styles.submenu}>
                 <TouchableOpacity
                   style={styles.submenuBotao}
-                  onPress={() => navegarPara("/consultas/conSaldo")}
+                  onPress={() => navegarPara("/consultas/conReceitas")}
                 >
-                  <IconeMenu nome="wallet-outline" cor="#00897B" pequeno />
-                  <Text style={styles.submenuItem}>Saldo</Text>
+                  <IconeMenu nome="cash-outline" cor="#2E7D32" pequeno />
+                  <Text style={styles.submenuItem}>Receitas</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -128,14 +120,6 @@ export default function Menu() {
                 >
                   <IconeMenu nome="receipt-outline" cor="#D32F2F" pequeno />
                   <Text style={styles.submenuItem}>Despesas</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.submenuBotao}
-                  onPress={() => navegarPara("/consultas/conReceitas")}
-                >
-                  <IconeMenu nome="cash-outline" cor="#2E7D32" pequeno />
-                  <Text style={styles.submenuItem}>Receitas</Text>
                 </TouchableOpacity>
               </View>
             )}

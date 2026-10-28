@@ -1,17 +1,23 @@
 import { Poppins_700Bold, useFonts } from "@expo-google-fonts/poppins";
 import { useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ConCard from "../../components/conCard";
 import DespesasRecentes from "../../components/despesasRecentes";
 import MenuPrincipal from "../../components/menu";
+import Provisao from "../../components/provisao";
 import ResumoFinanceiro from "../../components/resumoFinanceiro";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
 
 export default function Home() {
   // Fonte do título (Poppins Bold)
   const [fonteCarregada] = useFonts({ Poppins_700Bold });
+
+  // Muda quando algo é liquidado na Provisão: a nova "key" faz os outros
+  // cards remontarem e recarregarem os valores
+  const [versao, setVersao] = useState(0);
+  const atualizarCards = () => setVersao((v) => v + 1);
 
   // Reagenda os avisos de vencimento sempre que a Home volta a ficar em foco
   useFocusEffect(
@@ -44,13 +50,16 @@ export default function Home() {
         contentContainerStyle={styles.conteudo}
       >
         {/* Saldo disponível (lógica e cálculo dentro do ConCard) */}
-        <ConCard />
+        <ConCard key={`card-${versao}`} />
 
         {/* Meu dinheiro e despesas totais (clicáveis, abrem os cadastros) */}
-        <ResumoFinanceiro />
+        <ResumoFinanceiro key={`resumo-${versao}`} />
+
+        {/* Provisão: caixa, a receber, a pagar e saldo projetado */}
+        <Provisao aoLiquidar={atualizarCards} />
 
         {/* Últimas despesas cadastradas */}
-        <DespesasRecentes />
+        <DespesasRecentes key={`recentes-${versao}`} />
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,25 +1,26 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
-    DateTimePickerEvent,
+  DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    atualizarReceita,
-    buscarReceita,
-    inserirReceita,
+  atualizarReceita,
+  buscarReceita,
+  inserirReceita,
+  TIPO_SALARIO,
 } from "../../database/dbGestor/dbReceitas";
 
 // Edite as opções de tipo de receita aqui
@@ -89,6 +90,9 @@ export default function CadReceita() {
   const [observacao, setObservacao] = useState("");
   const [campoData, setCampoData] = useState<CampoData | null>(null);
   const [salvando, setSalvando] = useState(false);
+
+  // Salário é dinheiro garantido: sempre conta como recebido
+  const ehSalario = tipo === TIPO_SALARIO;
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -185,7 +189,7 @@ export default function CadReceita() {
       data: paraISO(dataEntrada),
       vencimento: paraISO(vencimento),
       observacao,
-      recebido,
+      recebido: ehSalario || recebido,
     };
 
     try {
@@ -293,16 +297,19 @@ export default function CadReceita() {
           <View style={styles.textosSwitch}>
             <Text style={styles.switchTitulo}>Recebido</Text>
             <Text style={styles.switchSubtitulo}>
-              {recebido
-                ? "Já recebida, soma no saldo disponível"
-                : "A receber, ainda não soma no saldo"}
+              {ehSalario
+                ? "Salário entra automaticamente no saldo"
+                : recebido
+                  ? "Já recebida, soma no saldo disponível"
+                  : "A receber, ainda não soma no saldo"}
             </Text>
           </View>
           <Switch
-            value={recebido}
+            value={ehSalario || recebido}
             onValueChange={setRecebido}
+            disabled={ehSalario}
             trackColor={{ false: "#D0D0D0", true: "#80CBC4" }}
-            thumbColor={recebido ? "#00897B" : "#F4F4F4"}
+            thumbColor={ehSalario || recebido ? "#00897B" : "#F4F4F4"}
           />
         </View>
 
