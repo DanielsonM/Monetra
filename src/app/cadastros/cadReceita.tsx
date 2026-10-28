@@ -23,7 +23,6 @@ import {
   atualizarReceita,
   buscarReceita,
   inserirReceita,
-  TIPO_SALARIO,
 } from "../../database/dbGestor/dbReceitas";
 import InfoButton from "../../components/infoButton";
 
@@ -103,9 +102,6 @@ export default function CadReceita() {
 
   // Altura máxima da lista: o que sobra da tela, limitado a 320
   const alturaMaxLista = Math.min(320, alturaTela - posTipo.top - 24);
-
-  // Salário é dinheiro garantido: sempre conta como recebido
-  const ehSalario = tipo === TIPO_SALARIO;
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -214,7 +210,7 @@ export default function CadReceita() {
       data: paraISO(dataEntrada),
       vencimento: paraISO(vencimento),
       observacao,
-      recebido: ehSalario || recebido,
+      recebido,
     };
 
     try {
@@ -323,19 +319,16 @@ export default function CadReceita() {
           <View style={styles.textosSwitch}>
             <Text style={styles.switchTitulo}>Recebido</Text>
             <Text style={styles.switchSubtitulo}>
-              {ehSalario
-                ? "Salário entra automaticamente no saldo"
-                : recebido
-                  ? "Já recebida, soma no saldo disponível"
-                  : "A receber, ainda não soma no saldo"}
+              {recebido
+                ? "Já recebida, soma no saldo disponível"
+                : "A receber, ainda não soma no saldo"}
             </Text>
           </View>
           <Switch
-            value={ehSalario || recebido}
+            value={recebido}
             onValueChange={setRecebido}
-            disabled={ehSalario}
             trackColor={{ false: "#D0D0D0", true: "#80CBC4" }}
-            thumbColor={ehSalario || recebido ? "#00897B" : "#F4F4F4"}
+            thumbColor={recebido ? "#00897B" : "#F4F4F4"}
           />
         </View>
 

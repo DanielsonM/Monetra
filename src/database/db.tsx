@@ -96,11 +96,6 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
     );
   }
 
-  // Salário é dinheiro garantido: sempre conta como recebido (entra no saldo).
-  // Isso também ajusta os salários que já estavam cadastrados como "a receber"
-  await db.execAsync(
-    "UPDATE receitas SET recebido = 1 WHERE tipo = 'Salário' AND recebido = 0;"
-  );
 }
 
 // Abre o banco uma única vez e reaproveita a conexão

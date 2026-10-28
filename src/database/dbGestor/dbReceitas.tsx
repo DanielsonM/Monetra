@@ -1,11 +1,5 @@
 import { getDb } from "../db";
 
-// Salário é dinheiro garantido: sempre conta como recebido (entra no saldo)
-export const TIPO_SALARIO = "Salário";
-
-const contaComoRecebido = (d: { tipo: string; recebido?: boolean }) =>
-  d.tipo === TIPO_SALARIO || d.recebido ? 1 : 0;
-
 export type Receita = {
   id: number;
   nome: string;
@@ -39,7 +33,7 @@ export async function inserirReceita(d: DadosReceita) {
       d.data,
       d.vencimento,
       d.observacao?.trim() || null,
-      contaComoRecebido(d),
+      d.recebido ? 1 : 0,
     ]
   );
   return r.lastInsertRowId;
@@ -72,7 +66,7 @@ export async function atualizarReceita(id: number, d: DadosReceita) {
       d.data,
       d.vencimento,
       d.observacao?.trim() || null,
-      contaComoRecebido(d),
+      d.recebido ? 1 : 0,
       id,
     ]
   );
