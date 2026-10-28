@@ -9,6 +9,7 @@ import MenuPrincipal from "../../components/menu";
 import Provisao from "../../components/provisao";
 import ResumoFinanceiro from "../../components/resumoFinanceiro";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
+import InfoButton from "../../components/infoButton";
 
 export default function Home() {
   // Fonte do título (Poppins Bold)
@@ -39,6 +40,10 @@ export default function Home() {
         <Text style={[styles.titulo, fonteCarregada && styles.tituloFonte]}>
           Monetra
         </Text>
+
+        <View style={styles.ajuda}>
+          <InfoButton titulo="Como usar o Monetra" texto={"• Cadastre seus saldos e receitas para registrar o dinheiro disponível e o que espera receber.\n\n• Cadastre despesas com valor e vencimento. Marque como fixa se ela se repetir mensalmente.\n\n• Saldo disponível considera valores já recebidos e despesas já pagas.\n\n• Em Provisão, acompanhe o que falta receber ou pagar e veja o saldo projetado. Toque no botão de confirmação para registrar uma baixa.\n\n• Despesas Recentes permite confirmar pagamentos; despesas fixas avançam para o próximo vencimento.\n\n• No menu, acesse consultas, histórico e configurações de avisos."} />
+        </View>
 
         {/* Botão ☰ e menu suspenso */}
         <MenuPrincipal />
@@ -91,6 +96,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 10,
   },
+  ajuda: { position: "absolute", right: 0, top: 4 },
 
   // Título centralizado
   titulo: {

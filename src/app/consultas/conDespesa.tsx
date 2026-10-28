@@ -16,6 +16,7 @@ import {
   listarDespesas,
 } from "../../database/dbGestor/dbDespesas";
 import { dataISOparaBR } from "../../utils/converterData";
+import InfoButton from "../../components/infoButton";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
@@ -124,6 +125,7 @@ export default function ConDespesa() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Despesas</Text>
+        <InfoButton compacto titulo="Consulta de despesas" texto="Veja as despesas cadastradas, seus vencimentos e status de pagamento. O botão + cria uma nova despesa; o pagamento pode ser confirmado na lista ou na Provisão." />
       </View>
 
       {/* Resumo com o botão "+" para adicionar despesa */}

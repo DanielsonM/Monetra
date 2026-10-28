@@ -14,6 +14,7 @@ import {
 } from "../database/dbGestor/dbReceitas";
 import { sincronizarNotificacoes } from "../services/notificacoes";
 import { dataISOparaBR } from "../utils/converterData";
+import InfoButton from "./infoButton";
 
 // Quantos itens aparecem na lista antes de "Ver todas"
 const LIMITE = 5;
@@ -172,7 +173,10 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
         onPress={() => setAberto(!aberto)}
         activeOpacity={0.7}
       >
-        <Text style={styles.titulo}>Provisão</Text>
+        <View style={styles.tituloLinha}>
+          <Text style={styles.titulo}>Provisão</Text>
+          <InfoButton compacto titulo="Provisão" texto="Acompanhe o caixa atual, valores a receber e a pagar e o saldo projetado. Use as abas para filtrar pendências. O botão de confirmação ao lado de cada item registra o recebimento ou pagamento." />
+        </View>
 
         <View style={styles.cabecalhoDireita}>
           {/* Fechado: mostra só o saldo projetado como resumo */}
@@ -366,6 +370,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#1A1A1A",
   },
+  tituloLinha: { flexDirection: "row", alignItems: "center", gap: 4 },
 
   // Relatório
   linha: {

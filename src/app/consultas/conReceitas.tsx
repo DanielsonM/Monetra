@@ -17,6 +17,7 @@ import {
   type Receita,
 } from "../../database/dbGestor/dbReceitas";
 import { dataISOparaBR } from "../../utils/converterData";
+import InfoButton from "../../components/infoButton";
 
 // Situação de cada receita:
 // - recebida: já foi recebida (entra no saldo disponível)
@@ -222,6 +223,7 @@ export default function ConReceita() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Receitas</Text>
+        <InfoButton compacto titulo="Consulta de receitas" texto="Veja e gerencie as receitas cadastradas. O botão + cria uma receita; use a ação de recebimento para registrar quando o valor entrar." />
       </View>
 
       {/* Resumo com o botão "+" para adicionar receita */}

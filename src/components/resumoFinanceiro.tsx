@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { totalDespesas } from "../database/dbGestor/dbDespesas";
 import { totalReceitas } from "../database/dbGestor/dbReceitas";
+import InfoButton from "./infoButton";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
@@ -36,6 +37,7 @@ function CardResumo({
     >
       <View style={styles.linhaTopo}>
         <Text style={styles.label}>{titulo}</Text>
+        <InfoButton compacto titulo={titulo} texto={titulo === "Receitas totais" ? "Soma todas as receitas cadastradas, recebidas ou ainda a receber. Toque no card para consultar e no + para cadastrar uma receita." : "Soma todas as despesas cadastradas, pagas ou pendentes. Toque no card para consultar e no + para cadastrar uma despesa."} />
 
         {/* Atalho para cadastrar um novo item */}
         <TouchableOpacity

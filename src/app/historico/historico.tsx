@@ -16,6 +16,7 @@ import {
     resumoPorMes,
     ultimosMeses,
 } from "../../database/dbGestor/dbHistorico";
+import InfoButton from "../../components/infoButton";
 
 const MESES = [
   "Janeiro",
@@ -158,6 +159,7 @@ export default function Historico() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Histórico</Text>
+        <InfoButton compacto titulo="Histórico financeiro" texto="Consulte entradas e pagamentos registrados por mês. Use as setas ou toque nas barras para escolher um mês e veja os gastos divididos por tipo. O histórico começa a ser formado quando você confirma recebimentos e pagamentos." />
       </View>
 
       <ScrollView

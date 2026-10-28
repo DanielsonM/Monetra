@@ -17,6 +17,7 @@ import {
     carregarConfigNotificacao,
     salvarConfigNotificacao,
 } from "../../database/dbGestor/dbConfiguracoes";
+import InfoButton from "../../components/infoButton";
 import {
     horariosDoDia,
     sincronizarNotificacoes,
@@ -163,6 +164,7 @@ export default function Configuracao() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Configurações</Text>
+        <InfoButton compacto titulo="Configurações de avisos" texto="Defina com quantos dias de antecedência os avisos começam, a frequência das repetições e os horários das notificações. Os avisos continuam para despesas não pagas conforme as opções escolhidas." />
       </View>
 
       <ScrollView

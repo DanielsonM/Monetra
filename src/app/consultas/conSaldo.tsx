@@ -16,6 +16,7 @@ import {
   listarSaldos,
 } from "../../database/dbGestor/dbSaldos";
 import { dataISOparaBR } from "../../utils/converterData";
+import InfoButton from "../../components/infoButton";
 
 type NomeIcone = keyof typeof Ionicons.glyphMap;
 
@@ -144,6 +145,7 @@ export default function ConSaldo() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Saldos</Text>
+        <InfoButton compacto titulo="Saldos cadastrados" texto="Consulte os valores iniciais registrados. O botão + adiciona um novo valor disponível, que entra no saldo da Home." />
       </View>
 
       {/* Resumo com o botão "+" para adicionar saldo */}

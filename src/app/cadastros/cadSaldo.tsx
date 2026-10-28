@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { inserirSaldo } from "../../database/dbGestor/dbSaldos";
+import InfoButton from "../../components/infoButton";
 
 // Edite as opções do combobox aqui
 const TIPOS = ["Salário", "Renda extra", "Rendimentos", "Outros"];
@@ -93,6 +94,7 @@ export default function CadSaldo() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Novo saldo</Text>
+        <InfoButton compacto titulo="Novo saldo" texto="Registre um valor que já está disponível, como dinheiro inicial ou uma reserva. Esse valor entra no cálculo do saldo disponível." />
       </View>
 
       <Text style={styles.label}>Valor</Text>

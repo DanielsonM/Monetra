@@ -10,6 +10,7 @@ import {
 } from "../database/dbGestor/dbDespesas";
 import { sincronizarNotificacoes } from "../services/notificacoes";
 import { dataISOparaBR, somarUmMes } from "../utils/converterData";
+import InfoButton from "./infoButton";
 
 type NomeIcone = keyof typeof Ionicons.glyphMap;
 
@@ -151,7 +152,10 @@ export default function DespesasRecentes({ aoPagar }: Props) {
 
   return (
     <View style={styles.secao}>
-      <Text style={styles.titulo}>Despesas Recentes</Text>
+      <View style={styles.tituloLinha}>
+        <Text style={styles.titulo}>Despesas Recentes</Text>
+        <InfoButton compacto titulo="Despesas recentes" texto="Lista despesas próximas e pendentes. Toque em uma despesa ainda não paga para confirmar o pagamento; isso desconta o valor do saldo disponível. Para despesas fixas, o próximo vencimento avança um mês." />
+      </View>
 
       {despesas.length === 0 && (
         <Text style={styles.vazio}>Nenhuma despesa para exibir</Text>
@@ -218,6 +222,7 @@ const styles = StyleSheet.create({
     color: "#1A1A2E",
     marginBottom: 12,
   },
+  tituloLinha: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
 
   vazio: { fontSize: 15, color: "#999999", marginBottom: 12 },
 

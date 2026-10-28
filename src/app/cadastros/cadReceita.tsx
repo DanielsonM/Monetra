@@ -25,6 +25,7 @@ import {
   inserirReceita,
   TIPO_SALARIO,
 } from "../../database/dbGestor/dbReceitas";
+import InfoButton from "../../components/infoButton";
 
 // Edite as opções de tipo de receita aqui
 const TIPOS_RECEITA = [
@@ -246,6 +247,7 @@ export default function CadReceita() {
         <Text style={styles.titulo}>
           {editando ? "Editar receita" : "Nova receita"}
         </Text>
+        <InfoButton compacto titulo="Cadastro de receita" texto="Informe a origem, o valor e as datas previstas. Marque como recebida quando o dinheiro entrar; assim ele passa a compor o saldo disponível." />
       </View>
 
       <ScrollView

@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { totalDespesasPagas } from "../database/dbGestor/dbDespesas";
 import { totalReceitasRecebidas } from "../database/dbGestor/dbReceitas";
+import InfoButton from "./infoButton";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
@@ -50,7 +51,10 @@ export default function ConCard() {
         { backgroundColor: saldoNegativo ? "#D32F2F" : "#2E7D32" },
       ]}
     >
-      <Text style={styles.labelSaldo}>Saldo disponível</Text>
+      <View style={styles.tituloLinha}>
+        <Text style={styles.labelSaldo}>Saldo disponível</Text>
+        <InfoButton compacto titulo="Saldo disponível" texto="Mostra o dinheiro que já entrou (receitas recebidas e saldos cadastrados) menos as despesas marcadas como pagas. Despesas pendentes ainda não são descontadas." />
+      </View>
 
       <Text style={styles.valor}>{formatarMoeda(saldoDisponivel)}</Text>
 
@@ -82,6 +86,7 @@ const styles = StyleSheet.create({
     color: "#E8F5E9",
     marginBottom: 8,
   },
+  tituloLinha: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
 
   valor: {
     fontSize: 34,

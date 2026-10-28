@@ -26,6 +26,7 @@ import {
   pagarDespesa,
 } from "../../database/dbGestor/dbDespesas";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
+import InfoButton from "../../components/infoButton";
 
 // Edite as opções do combobox aqui
 const TIPOS = [
@@ -233,6 +234,7 @@ export default function CadDespesas() {
         <Text style={styles.titulo}>
           {editando ? "Editar despesa" : "Nova despesa"}
         </Text>
+        <InfoButton compacto titulo="Cadastro de despesa" texto="Informe nome, valor e vencimento. Marque como fixa se a despesa se repetir mensalmente. Se marcar como paga, o valor sai do saldo disponível e o pagamento fica no histórico." />
       </View>
 
       <Text style={styles.label}>Nome</Text>
