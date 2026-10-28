@@ -59,7 +59,10 @@ export default function Home() {
         <Provisao aoLiquidar={atualizarCards} />
 
         {/* Últimas despesas cadastradas */}
-        <DespesasRecentes key={`recentes-${versao}`} />
+        <DespesasRecentes
+          key={`recentes-${versao}`}
+          aoPagar={atualizarCards}
+        />
       </ScrollView>
     </SafeAreaView>
   );

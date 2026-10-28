@@ -99,7 +99,11 @@ function calcularStatus(d: Despesa): Status {
   };
 }
 
-export default function DespesasRecentes() {
+type Props = {
+  aoPagar?: () => void;
+};
+
+export default function DespesasRecentes({ aoPagar }: Props) {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
 
   const carregar = useCallback(async () => {
@@ -133,6 +137,7 @@ export default function DespesasRecentes() {
             try {
               await pagarDespesa(d.id);
               await sincronizarNotificacoes(); // cancela os avisos desta despesa
+              aoPagar?.();
               await carregar();
             } catch (erro) {
               console.error(erro);
