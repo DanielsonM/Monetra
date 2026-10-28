@@ -10,18 +10,20 @@ export type Despesa = {
   pago: number; // 0 = não pago, 1 = pago
   observacao: string | null;
   fixa: number; // 0 = única, 1 = fixa (repete todo mês até ser removida)
+  frequencia: "semanal" | "mensal" | "anual";
   criado_em: string;
 };
 
 export async function inserirDespesa(
-  d: Omit<Despesa, "id" | "criado_em" | "pago" | "observacao" | "fixa"> & {
+  d: Omit<Despesa, "id" | "criado_em" | "pago" | "observacao" | "fixa" | "frequencia"> & {
     observacao?: string;
     fixa?: boolean;
+    frequencia?: "semanal" | "mensal" | "anual";
   }
 ) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO despesas (nome, valor, tipo, vencimento, observacao, fixa) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO despesas (nome, valor, tipo, vencimento, observacao, fixa, frequencia) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [
       d.nome,
       d.valor,
@@ -29,6 +31,7 @@ export async function inserirDespesa(
       d.vencimento,
       d.observacao?.trim() || null,
       d.fixa ? 1 : 0,
+      d.frequencia ?? "mensal",
     ]
   );
   return r.lastInsertRowId;
@@ -60,11 +63,12 @@ export async function atualizarDespesa(
     vencimento: string;
     observacao?: string;
     fixa?: boolean;
+    frequencia?: "semanal" | "mensal" | "anual";
   }
 ) {
   const db = await getDb();
   await db.runAsync(
-    "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, vencimento = ?, observacao = ?, fixa = ? WHERE id = ?",
+    "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, vencimento = ?, observacao = ?, fixa = ?, frequencia = ? WHERE id = ?",
     [
       d.nome,
       d.valor,
@@ -72,6 +76,7 @@ export async function atualizarDespesa(
       d.vencimento,
       d.observacao?.trim() || null,
       d.fixa ? 1 : 0,
+      d.frequencia ?? "mensal",
       id,
     ]
   );
@@ -107,14 +112,29 @@ export async function pagarDespesa(id: number) {
     );
 
     if (d.fixa) {
+      const proximoVencimento = somarFrequencia(d.vencimento, d.frequencia);
       await db.runAsync(
         "UPDATE despesas SET pago = 1, vencimento = ? WHERE id = ?",
-        [somarUmMes(d.vencimento), id]
+        [proximoVencimento, id]
       );
     } else {
       await db.runAsync("UPDATE despesas SET pago = 1 WHERE id = ?", [id]);
     }
   });
+}
+
+function somarFrequencia(data: string, frequencia: Despesa["frequencia"]): string {
+  if (frequencia === "mensal") return somarUmMes(data);
+  const [ano, mes, dia] = data.split("-").map(Number);
+  let proxima: Date;
+  if (frequencia === "semanal") {
+    proxima = new Date(ano, mes - 1, dia + 7);
+  } else {
+    const anoSeguinte = ano + 1;
+    const ultimoDiaDoMes = new Date(anoSeguinte, mes, 0).getDate();
+    proxima = new Date(anoSeguinte, mes - 1, Math.min(dia, ultimoDiaDoMes));
+  }
+  return `${proxima.getFullYear()}-${String(proxima.getMonth() + 1).padStart(2, "0")}-${String(proxima.getDate()).padStart(2, "0")}`;
 }
 
 // Despesas fixas pagas cujo novo vencimento já caiu no mês atual voltam a "não pago"
@@ -124,7 +144,8 @@ export async function renovarPendentes() {
     `UPDATE despesas SET pago = 0
      WHERE pago = 1
        AND fixa = 1
-       AND vencimento < date('now', 'localtime', 'start of month', '+1 month')`
+       AND ((frequencia = 'mensal' AND vencimento < date('now', 'localtime', 'start of month', '+1 month'))
+         OR (frequencia != 'mensal' AND vencimento <= date('now', 'localtime')))`
   );
 }
 

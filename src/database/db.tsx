@@ -22,12 +22,27 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       pago INTEGER NOT NULL DEFAULT 0,
       observacao TEXT,
       fixa INTEGER NOT NULL DEFAULT 0,
+      frequencia TEXT NOT NULL DEFAULT 'mensal',
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS configuracoes (
       chave TEXT PRIMARY KEY NOT NULL,
       valor TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS orcamentos (
+      tipo TEXT PRIMARY KEY NOT NULL,
+      limite REAL NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS metas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      objetivo REAL NOT NULL,
+      guardado REAL NOT NULL DEFAULT 0,
+      prazo TEXT,
+      criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS pagamentos (
@@ -63,6 +78,9 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
     );
     // Despesas antigas já se repetiam todo mês: mantém esse comportamento
     await db.execAsync("UPDATE despesas SET fixa = 1;");
+  }
+  if (!colunas.some((c) => c.name === "frequencia")) {
+    await db.execAsync("ALTER TABLE despesas ADD COLUMN frequencia TEXT NOT NULL DEFAULT 'mensal';");
   }
 
   // Migrações da tabela de receitas

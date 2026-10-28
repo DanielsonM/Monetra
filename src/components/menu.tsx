@@ -2,6 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
+  Dimensions,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -37,11 +39,13 @@ export default function Menu() {
   const [menuAberto, setMenuAberto] = useState(false);
   const [cadastroAberto, setCadastroAberto] = useState(false);
   const [consultaAberto, setConsultaAberto] = useState(false);
+  const [recursosAberto, setRecursosAberto] = useState(false);
 
   const navegarPara = (rota: string) => {
     setMenuAberto(false);
     setCadastroAberto(false);
     setConsultaAberto(false);
+    setRecursosAberto(false);
     router.push(rota as never);
   };
 
@@ -65,7 +69,11 @@ export default function Menu() {
           </TouchableWithoutFeedback>
 
           {/* Opções do menu */}
-          <View style={styles.menu}>
+          <ScrollView
+            style={styles.menu}
+            contentContainerStyle={styles.menuConteudo}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Cadastro com submenu */}
             <TouchableOpacity
               style={styles.menuBotao}
@@ -126,6 +134,44 @@ export default function Menu() {
 
             <TouchableOpacity
               style={styles.menuBotao}
+              onPress={() => navegarPara("/planejamento/planejamento")}
+            >
+              <IconeMenu nome="pie-chart-outline" cor="#00897B" />
+              <Text style={styles.menuItem}>Planejamento</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuBotao} onPress={() => setRecursosAberto(!recursosAberto)}>
+              <IconeMenu nome="apps-outline" cor="#00897B" />
+              <Text style={styles.menuItem}>Mais recursos</Text>
+            </TouchableOpacity>
+
+            {recursosAberto && (
+              <View style={styles.submenu}>
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/gastoRapido")}>
+                  <IconeMenu nome="flash-outline" cor="#F57C00" pequeno />
+                  <Text style={styles.submenuItem}>Gasto rápido</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/consultas/buscarLancamentos")}>
+                  <IconeMenu nome="search-outline" cor="#1976D2" pequeno />
+                  <Text style={styles.submenuItem}>Buscar lançamentos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/metas/metas")}>
+                  <IconeMenu nome="flag-outline" cor="#6A1B9A" pequeno />
+                  <Text style={styles.submenuItem}>Metas de economia</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/relatorios/relatorios")}>
+                  <IconeMenu nome="document-text-outline" cor="#00897B" pequeno />
+                  <Text style={styles.submenuItem}>Relatórios</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/backup/backup")}>
+                  <IconeMenu nome="shield-checkmark-outline" cor="#455A64" pequeno />
+                  <Text style={styles.submenuItem}>Backup e restauração</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.menuBotao}
               onPress={() => navegarPara("/configuracao/configuracao")}
             >
               <IconeMenu nome="settings-outline" cor="#6A1B9A" />
@@ -139,7 +185,7 @@ export default function Menu() {
               <IconeMenu nome="stats-chart-outline" cor="#F57C00" />
               <Text style={styles.menuItem}>Histórico</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </>
       )}
     </>
@@ -184,16 +230,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 8,
     width: 230,
+    maxHeight: Dimensions.get("window").height * 0.8,
     zIndex: 11,
     elevation: 13,
-
     shadowColor: "#000000",
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 5,
+  },
+  menuConteudo: {
+    paddingVertical: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
   },
 
   // Quadradinho colorido atrás do ícone

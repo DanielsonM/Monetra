@@ -108,6 +108,7 @@ export default function CadDespesas() {
   const [observacao, setObservacao] = useState("");
   const [jaPaga, setJaPaga] = useState(false);
   const [fixa, setFixa] = useState(false);
+  const [frequencia, setFrequencia] = useState<"semanal" | "mensal" | "anual">("mensal");
 
   const [tipoAberto, setTipoAberto] = useState(false);
   const [posTipo, setPosTipo] = useState({ top: 0, left: 0, width: 0 });
@@ -146,6 +147,7 @@ export default function CadDespesas() {
         setVencimento(isoParaDate(d.vencimento));
         setObservacao(d.observacao ?? "");
         setFixa(d.fixa === 1);
+        setFrequencia(d.frequencia ?? "mensal");
       })
       .catch((erro) => {
         console.error(erro);
@@ -191,6 +193,7 @@ export default function CadDespesas() {
       vencimento: paraISO(vencimento),
       observacao,
       fixa,
+      frequencia,
     };
 
     try {
@@ -294,13 +297,13 @@ export default function CadDespesas() {
         />
       )}
 
-      {/* Despesa fixa: se repete todo mês até o usuário removê-la */}
+      {/* Despesa recorrente */}
       <View style={styles.linhaSwitch}>
         <View style={styles.textosSwitch}>
           <Text style={styles.switchTitulo}>Despesa fixa</Text>
           <Text style={styles.switchSubtitulo}>
             {fixa
-              ? "Se repete todo mês até você removê-la"
+              ? `Se repete ${frequencia === "semanal" ? "toda semana" : frequencia === "anual" ? "todo ano" : "todo mês"}`
               : "Despesa única, não se repete"}
           </Text>
         </View>
@@ -311,6 +314,16 @@ export default function CadDespesas() {
           thumbColor={fixa ? "#2E7D32" : "#F4F4F4"}
         />
       </View>
+
+      {fixa && (
+        <View style={styles.frequencias}>
+          {(["semanal", "mensal", "anual"] as const).map((opcao) => (
+            <TouchableOpacity key={opcao} onPress={() => setFrequencia(opcao)} style={[styles.frequencia, frequencia === opcao && styles.frequenciaAtiva]}>
+              <Text style={[styles.frequenciaTexto, frequencia === opcao && styles.frequenciaTextoAtivo]}>{opcao.charAt(0).toUpperCase() + opcao.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Marca a despesa como paga já no cadastro (só em despesa nova) */}
       {!editando && (
@@ -433,6 +446,11 @@ const styles = StyleSheet.create({
   textosSwitch: { flex: 1, paddingRight: 10 },
   switchTitulo: { fontSize: 16, color: "#1A1A1A" },
   switchSubtitulo: { fontSize: 12, color: "#999999", marginTop: 2 },
+  frequencias: { flexDirection: "row", gap: 8, marginTop: 8, marginLeft: 4 },
+  frequencia: { borderRadius: 18, borderWidth: 1, borderColor: "#CCCCCC", paddingHorizontal: 12, paddingVertical: 7 },
+  frequenciaAtiva: { backgroundColor: "#E0F2F1", borderColor: "#00897B" },
+  frequenciaTexto: { color: "#666666", fontSize: 13 },
+  frequenciaTextoAtivo: { color: "#00897B", fontWeight: "bold" },
 
   // Contador de caracteres da observação
   contador: {
