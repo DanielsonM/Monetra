@@ -377,18 +377,33 @@ const styles = StyleSheet.create({
   resumoDetalhe: { fontSize: 13, color: "#E0F2F1", marginTop: 4 },
 
   // Filtros
-  filtrosScroll: { flexGrow: 0, marginBottom: 12 },
-  filtros: { flexDirection: "row", gap: 8, paddingRight: 20 },
+  filtrosScroll: { height: 52, flexGrow: 0, flexShrink: 0, marginBottom: 12 },
+  filtros: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 2,
+    paddingRight: 20,
+  },
   filtro: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    minHeight: 40,
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
   filtroAtivo: { backgroundColor: "#00897B", borderColor: "#00897B" },
-  filtroTexto: { fontSize: 14, color: "#1A1A1A" },
+  filtroTexto: {
+    fontSize: 14,
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    color: "#1A1A1A",
+  },
   filtroTextoAtivo: { color: "#FFFFFF", fontWeight: "bold" },
   resultado: { fontSize: 13, color: "#666666", marginBottom: 10 },
 

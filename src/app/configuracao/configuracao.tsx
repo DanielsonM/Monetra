@@ -325,12 +325,14 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    minHeight: 40,
     borderRadius: 20,
     backgroundColor: "#F0F0F0",
+    justifyContent: "center",
+    alignItems: "center",
   },
   chipAtivo: { backgroundColor: "#2E7D32" },
-  chipTexto: { fontSize: 14, color: "#444444" },
+  chipTexto: { fontSize: 14, lineHeight: 20, includeFontPadding: false, textAlignVertical: "center", color: "#444444" },
   chipTextoAtivo: { color: "#FFFFFF", fontWeight: "bold" },
 
   // Controle − valor +

@@ -266,13 +266,33 @@ export default function CadReceita() {
         />
 
         <Text style={styles.label}>Número de parcelas</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="1"
-          keyboardType="number-pad"
-          value={parcelas}
-          onChangeText={(texto) => setParcelas(texto.replace(/\D/g, ""))}
-        />
+        <View style={styles.parcelasControle}>
+          <TouchableOpacity
+            style={[styles.botaoParcela, Number(parcelas) <= 1 && styles.botaoParcelaDesativado]}
+            onPress={() => setParcelas((atual) => String(Math.max(1, (Number(atual) || 1) - 1)))}
+            disabled={Number(parcelas) <= 1}
+            accessibilityRole="button"
+            accessibilityLabel="Diminuir número de parcelas"
+          >
+            <Ionicons name="remove" size={22} color={Number(parcelas) <= 1 ? "#AAAAAA" : "#00897B"} />
+          </TouchableOpacity>
+          <TextInput
+            style={[styles.input, styles.valorParcelas]}
+            placeholder="1"
+            keyboardType="number-pad"
+            value={parcelas}
+            onChangeText={(texto) => setParcelas(texto.replace(/\D/g, ""))}
+            textAlign="center"
+          />
+          <TouchableOpacity
+            style={styles.botaoParcela}
+            onPress={() => setParcelas((atual) => String((Number(atual) || 0) + 1))}
+            accessibilityRole="button"
+            accessibilityLabel="Aumentar número de parcelas"
+          >
+            <Ionicons name="add" size={22} color="#00897B" />
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.label}>Valor</Text>
         <TextInput
@@ -439,6 +459,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1A1A1A",
   },
+  parcelasControle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  valorParcelas: { flex: 1 },
+  botaoParcela: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#E0F2F1",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  botaoParcelaDesativado: { backgroundColor: "#EEEEEE" },
 
   // Lista do combobox de tipo
   lista: {
