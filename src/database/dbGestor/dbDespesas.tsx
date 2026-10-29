@@ -11,19 +11,21 @@ export type Despesa = {
   observacao: string | null;
   fixa: number; // 0 = única, 1 = fixa (repete todo mês até ser removida)
   frequencia: "semanal" | "mensal" | "anual";
+  parcelas: number;
   criado_em: string;
 };
 
 export async function inserirDespesa(
-  d: Omit<Despesa, "id" | "criado_em" | "pago" | "observacao" | "fixa" | "frequencia"> & {
+  d: Omit<Despesa, "id" | "criado_em" | "pago" | "observacao" | "fixa" | "frequencia" | "parcelas"> & {
     observacao?: string;
     fixa?: boolean;
     frequencia?: "semanal" | "mensal" | "anual";
+    parcelas?: number;
   }
 ) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO despesas (nome, valor, tipo, vencimento, observacao, fixa, frequencia) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO despesas (nome, valor, tipo, vencimento, observacao, fixa, frequencia, parcelas) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     [
       d.nome,
       d.valor,
@@ -32,6 +34,7 @@ export async function inserirDespesa(
       d.observacao?.trim() || null,
       d.fixa ? 1 : 0,
       d.frequencia ?? "mensal",
+      d.parcelas ?? 1,
     ]
   );
   return r.lastInsertRowId;
@@ -64,11 +67,12 @@ export async function atualizarDespesa(
     observacao?: string;
     fixa?: boolean;
     frequencia?: "semanal" | "mensal" | "anual";
+    parcelas?: number;
   }
 ) {
   const db = await getDb();
   await db.runAsync(
-    "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, vencimento = ?, observacao = ?, fixa = ?, frequencia = ? WHERE id = ?",
+    "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, vencimento = ?, observacao = ?, fixa = ?, frequencia = ?, parcelas = ? WHERE id = ?",
     [
       d.nome,
       d.valor,
@@ -77,6 +81,7 @@ export async function atualizarDespesa(
       d.observacao?.trim() || null,
       d.fixa ? 1 : 0,
       d.frequencia ?? "mensal",
+      d.parcelas ?? 1,
       id,
     ]
   );

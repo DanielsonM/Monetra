@@ -103,6 +103,7 @@ export default function CadDespesas() {
 
   const [nome, setNome] = useState("");
   const [valor, setValor] = useState("");
+  const [parcelas, setParcelas] = useState("1");
   const [tipo, setTipo] = useState("");
   const [vencimento, setVencimento] = useState<Date | null>(null);
   const [observacao, setObservacao] = useState("");
@@ -143,6 +144,7 @@ export default function CadDespesas() {
 
         setNome(d.nome);
         setValor(formatarMoeda(String(Math.round(d.valor * 100))));
+        setParcelas(String(d.parcelas ?? 1));
         setTipo(d.tipo);
         setVencimento(isoParaDate(d.vencimento));
         setObservacao(d.observacao ?? "");
@@ -180,9 +182,17 @@ export default function CadDespesas() {
 
   const salvar = async () => {
     const valorNumero = moedaParaNumero(valor);
+    const parcelasNumero = Number(parcelas);
 
-    if (!nome.trim() || isNaN(valorNumero) || !tipo || !vencimento) {
-      Alert.alert("Atenção", "Preencha nome, valor, tipo e vencimento.");
+    if (
+      !nome.trim() ||
+      isNaN(valorNumero) ||
+      !tipo ||
+      !vencimento ||
+      !Number.isInteger(parcelasNumero) ||
+      parcelasNumero < 1
+    ) {
+      Alert.alert("Atenção", "Preencha os campos e informe um número inteiro de parcelas maior que zero.");
       return;
     }
 
@@ -194,6 +204,7 @@ export default function CadDespesas() {
       observacao,
       fixa,
       frequencia,
+      parcelas: parcelasNumero,
     };
 
     try {
@@ -296,6 +307,15 @@ export default function CadDespesas() {
           onChange={aoMudarData}
         />
       )}
+
+      <Text style={styles.label}>Número de parcelas</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="1"
+        keyboardType="number-pad"
+        value={parcelas}
+        onChangeText={(texto) => setParcelas(texto.replace(/\D/g, ""))}
+      />
 
       {/* Despesa recorrente */}
       <View style={styles.linhaSwitch}>

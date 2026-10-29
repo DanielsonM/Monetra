@@ -84,6 +84,7 @@ export default function CadReceita() {
 
   const [nome, setNome] = useState("");
   const [valor, setValor] = useState("");
+  const [parcelas, setParcelas] = useState("1");
   const [tipo, setTipo] = useState("");
   const [dataEntrada, setDataEntrada] = useState<Date | null>(
     editando ? null : new Date()
@@ -129,6 +130,7 @@ export default function CadReceita() {
 
         setNome(r.nome);
         setValor(mascaraMoeda(String(Math.round(r.valor * 100))));
+        setParcelas(String(r.parcelas ?? 1));
         setTipo(r.tipo);
         setDataEntrada(isoParaDate(r.data));
         setVencimento(isoParaDate(r.vencimento));
@@ -188,17 +190,20 @@ export default function CadReceita() {
 
   const salvar = async () => {
     const valorNumero = moedaParaNumero(valor);
+    const parcelasNumero = Number(parcelas);
 
     if (
       !nome.trim() ||
       isNaN(valorNumero) ||
       !tipo ||
       !dataEntrada ||
-      !vencimento
+      !vencimento ||
+      !Number.isInteger(parcelasNumero) ||
+      parcelasNumero < 1
     ) {
       Alert.alert(
         "Atenção",
-        "Preencha nome, valor, tipo, data de entrada e vencimento."
+        "Preencha nome, valor, tipo, datas e informe um número inteiro de parcelas maior que zero."
       );
       return;
     }
@@ -211,6 +216,7 @@ export default function CadReceita() {
       vencimento: paraISO(vencimento),
       observacao,
       recebido,
+      parcelas: parcelasNumero,
     };
 
     try {
@@ -257,6 +263,15 @@ export default function CadReceita() {
           placeholder="Ex.: Salário de outubro"
           value={nome}
           onChangeText={setNome}
+        />
+
+        <Text style={styles.label}>Número de parcelas</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="1"
+          keyboardType="number-pad"
+          value={parcelas}
+          onChangeText={(texto) => setParcelas(texto.replace(/\D/g, ""))}
         />
 
         <Text style={styles.label}>Valor</Text>

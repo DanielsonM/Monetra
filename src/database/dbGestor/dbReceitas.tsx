@@ -9,6 +9,7 @@ export type Receita = {
   vencimento: string; // AAAA-MM-DD (data de vencimento)
   observacao: string | null;
   recebido: number; // 0 = a receber, 1 = já recebida (entra no saldo disponível)
+  parcelas: number;
   criado_em: string;
 };
 
@@ -20,12 +21,13 @@ export type DadosReceita = {
   vencimento: string;
   observacao?: string;
   recebido?: boolean;
+  parcelas?: number;
 };
 
 export async function inserirReceita(d: DadosReceita) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, parcelas) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     [
       d.nome,
       d.valor,
@@ -34,6 +36,7 @@ export async function inserirReceita(d: DadosReceita) {
       d.vencimento,
       d.observacao?.trim() || null,
       d.recebido ? 1 : 0,
+      d.parcelas ?? 1,
     ]
   );
   return r.lastInsertRowId;
@@ -58,7 +61,7 @@ export async function buscarReceita(id: number): Promise<Receita | null> {
 export async function atualizarReceita(id: number, d: DadosReceita) {
   const db = await getDb();
   await db.runAsync(
-    "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ? WHERE id = ?",
+    "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ?, parcelas = ? WHERE id = ?",
     [
       d.nome,
       d.valor,
@@ -67,6 +70,7 @@ export async function atualizarReceita(id: number, d: DadosReceita) {
       d.vencimento,
       d.observacao?.trim() || null,
       d.recebido ? 1 : 0,
+      d.parcelas ?? 1,
       id,
     ]
   );

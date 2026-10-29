@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   excluirReceita,
   listarReceitas,
+  receberReceita,
   type Receita,
 } from "../../database/dbGestor/dbReceitas";
 import { dataISOparaBR } from "../../utils/converterData";
@@ -170,6 +171,28 @@ export default function ConReceita() {
     );
   };
 
+  const confirmarRecebimento = (receita: Receita) => {
+    Alert.alert(
+      "Confirmar recebimento",
+      `Marcar "${receita.nome}" (${formatarReal(receita.valor)}) como recebida?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Marcar como recebida",
+          onPress: async () => {
+            try {
+              await receberReceita(receita.id);
+              await carregar();
+            } catch (erro) {
+              console.error(erro);
+              Alert.alert("Erro", "Não foi possível registrar o recebimento.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderItem = ({ item }: { item: Receita }) => {
     const status = statusDe(item, hoje);
 
@@ -203,6 +226,18 @@ export default function ConReceita() {
 
         <View style={styles.cardDireita}>
           <Text style={styles.valor}>{formatarReal(item.valor)}</Text>
+          {status !== "recebida" && (
+            <TouchableOpacity
+              style={styles.botaoReceber}
+              onPress={() => confirmarRecebimento(item)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Marcar ${item.nome} como recebida`}
+            >
+              <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.botaoReceberTexto}>Recebida</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             onPress={() => confirmarExclusao(item)}
             hitSlop={10}
@@ -385,6 +420,16 @@ const styles = StyleSheet.create({
   statusVencida: { color: "#D32F2F" },
   cardDireita: { alignItems: "flex-end", gap: 10 },
   valor: { fontSize: 17, fontWeight: "bold", color: "#2E7D32" },
+  botaoReceber: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#00897B",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  botaoReceberTexto: { color: "#FFFFFF", fontSize: 12, fontWeight: "bold" },
 
   // Lista vazia
   vazio: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },

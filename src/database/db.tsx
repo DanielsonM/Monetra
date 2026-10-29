@@ -23,6 +23,7 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       observacao TEXT,
       fixa INTEGER NOT NULL DEFAULT 0,
       frequencia TEXT NOT NULL DEFAULT 'mensal',
+      parcelas INTEGER NOT NULL DEFAULT 1,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -64,6 +65,7 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       vencimento TEXT NOT NULL,
       observacao TEXT,
       recebido INTEGER NOT NULL DEFAULT 0,
+      parcelas INTEGER NOT NULL DEFAULT 1,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
   `);
@@ -81,6 +83,9 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
   }
   if (!colunas.some((c) => c.name === "frequencia")) {
     await db.execAsync("ALTER TABLE despesas ADD COLUMN frequencia TEXT NOT NULL DEFAULT 'mensal';");
+  }
+  if (!colunas.some((c) => c.name === "parcelas")) {
+    await db.execAsync("ALTER TABLE despesas ADD COLUMN parcelas INTEGER NOT NULL DEFAULT 1;");
   }
 
   // Migrações da tabela de receitas
@@ -112,6 +117,9 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
     await db.execAsync(
       "ALTER TABLE receitas ADD COLUMN recebido INTEGER NOT NULL DEFAULT 0;"
     );
+  }
+  if (!colunasReceitas.some((c) => c.name === "parcelas")) {
+    await db.execAsync("ALTER TABLE receitas ADD COLUMN parcelas INTEGER NOT NULL DEFAULT 1;");
   }
 
 }
