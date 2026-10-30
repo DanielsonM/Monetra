@@ -68,6 +68,18 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       parcelas INTEGER NOT NULL DEFAULT 1,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
+
+    CREATE TABLE IF NOT EXISTS unificacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      natureza TEXT NOT NULL,
+      nome_unificado TEXT NOT NULL,
+      valor_unificado REAL NOT NULL,
+      nome_origem TEXT NOT NULL,
+      valor_origem REAL NOT NULL,
+      nome_destino TEXT NOT NULL,
+      valor_destino REAL NOT NULL,
+      data_unificacao TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
   `);
 
   // Migração: adiciona a coluna "fixa" em bancos criados antes dela existir

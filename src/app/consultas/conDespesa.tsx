@@ -42,6 +42,10 @@ export default function ConDespesa() {
     router.push("/cadastros/cadDespesas" as never);
   };
 
+  const unificar = () => {
+    router.push("/consultas/unificarDespesas" as never);
+  };
+
   // Abre o cadastro em modo edição, com os dados da despesa carregados
   const editar = (despesa: Despesa) => {
     router.push({
@@ -125,7 +129,7 @@ export default function ConDespesa() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Despesas</Text>
-        <InfoButton compacto titulo="Consulta de despesas" texto="Veja as despesas cadastradas, seus vencimentos e status de pagamento. O botão + cria uma nova despesa; o pagamento pode ser confirmado na lista ou na Provisão." />
+        <InfoButton compacto titulo="Consulta de despesas" texto="Veja as despesas cadastradas, seus vencimentos e status de pagamento. O botão + cria uma nova despesa; o pagamento pode ser confirmado na lista ou na Provisão. Em Unificar despesas não pagas, escolha a despesa que continuará e a que será somada. A operação fica em Históricos > Unificações." />
       </View>
 
       {/* Resumo com o botão "+" para adicionar despesa */}
@@ -145,6 +149,10 @@ export default function ConDespesa() {
           </TouchableOpacity>
         </View>
         <Text style={styles.resumoValor}>{formatarMoeda(total)}</Text>
+        <TouchableOpacity style={styles.botaoUnificar} onPress={unificar} activeOpacity={0.8}>
+          <Ionicons name="git-compare-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.botaoUnificarTexto}>Unificar despesas não pagas</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -203,6 +211,8 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginTop: 4,
   },
+  botaoUnificar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#B71C1C", borderRadius: 10, paddingVertical: 11, marginTop: 14 },
+  botaoUnificarTexto: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
 
   // Lista
   lista: { paddingBottom: 20, flexGrow: 1 },

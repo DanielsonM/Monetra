@@ -82,6 +82,21 @@ export async function receberReceita(id: number) {
   await db.runAsync("UPDATE receitas SET recebido = 1 WHERE id = ?", [id]);
 }
 
+export async function unificarReceitas(origemId: number, destinoId: number) {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    const origem = await db.getFirstAsync<Receita>("SELECT * FROM receitas WHERE id = ? AND recebido = 0", [origemId]);
+    const destino = await db.getFirstAsync<Receita>("SELECT * FROM receitas WHERE id = ? AND recebido = 0", [destinoId]);
+    if (!origem || !destino || origem.id === destino.id) throw new Error("As receitas selecionadas não estão mais disponíveis.");
+    const valor = origem.valor + destino.valor;
+    const mensagem = `Unificada com ${origem.nome} (${origem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em ${new Date().toLocaleDateString("pt-BR")}.`;
+    const observacao = [destino.observacao?.trim(), mensagem].filter(Boolean).join("\n");
+    await db.runAsync("UPDATE receitas SET valor = ?, observacao = ? WHERE id = ?", [valor, observacao, destino.id]);
+    await db.runAsync("DELETE FROM receitas WHERE id = ?", [origem.id]);
+    await db.runAsync("INSERT INTO unificacoes (natureza, nome_unificado, valor_unificado, nome_origem, valor_origem, nome_destino, valor_destino) VALUES (?, ?, ?, ?, ?, ?, ?)", ["Receita", destino.nome, valor, origem.nome, origem.valor, destino.nome, destino.valor]);
+  });
+}
+
 export async function excluirReceita(id: number) {
   const db = await getDb();
   await db.runAsync("DELETE FROM receitas WHERE id = ?", [id]);

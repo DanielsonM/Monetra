@@ -42,7 +42,7 @@ export default function Home() {
         </Text>
 
         <View style={styles.ajuda}>
-          <InfoButton titulo="Como usar o Monetra" texto={"• Cadastre seus saldos e receitas para registrar o dinheiro disponível e o que espera receber.\n\n• Cadastre despesas com valor e vencimento. Marque como fixa se ela se repetir mensalmente.\n\n• Saldo disponível considera valores já recebidos e despesas já pagas.\n\n• Em Provisão, acompanhe o que falta receber ou pagar e veja o saldo projetado. Toque no botão de confirmação para registrar uma baixa.\n\n• Despesas Recentes permite confirmar pagamentos; despesas fixas avançam para o próximo vencimento.\n\n• No menu, acesse consultas, histórico e configurações de avisos."} />
+          <InfoButton titulo="Como usar o Monetra" texto={"• Cadastre seus saldos e receitas para registrar o dinheiro disponível e o que espera receber.\n\n• Cadastre despesas com valor e vencimento. Marque como fixa se ela se repetir mensalmente.\n\n• Saldo disponível considera valores já recebidos e despesas já pagas.\n\n• Em Provisão, acompanhe o que falta receber ou pagar e veja o saldo projetado. Toque no botão de confirmação para registrar uma baixa.\n\n• Despesas Recentes permite confirmar pagamentos; despesas fixas avançam para o próximo vencimento.\n\n• Para juntar lançamentos pendentes, abra Consulta > Receitas ou Despesas e toque em Unificar. A operação aparece em Históricos > Unificações.\n\n• Em Históricos, consulte o histórico financeiro ou as unificações. Configurações reúne os avisos do app."} />
         </View>
 
         {/* Botão ☰ e menu suspenso */}

@@ -158,8 +158,8 @@ export default function Historico() {
         <TouchableOpacity onPress={voltar} hitSlop={10} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
-        <Text style={styles.titulo}>Histórico</Text>
-        <InfoButton compacto titulo="Histórico financeiro" texto="Consulte entradas e pagamentos registrados por mês. Use as setas ou toque nas barras para escolher um mês e veja os gastos divididos por tipo. O histórico começa a ser formado quando você confirma recebimentos e pagamentos." />
+        <Text style={styles.titulo}>Histórico financeiro</Text>
+        <InfoButton compacto titulo="Histórico financeiro" texto="Consulte entradas e pagamentos registrados por mês. Use as setas ou toque nas barras para escolher um mês e veja os gastos divididos por tipo. Este histórico registra recebimentos e pagamentos; para consultar operações de unificação, volte a Históricos e abra Unificações." />
       </View>
 
       <ScrollView
@@ -379,6 +379,7 @@ export default function Historico() {
             </Text>
           </TouchableOpacity>
         ))}
+
       </ScrollView>
     </SafeAreaView>
   );

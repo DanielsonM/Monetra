@@ -128,6 +128,21 @@ export async function pagarDespesa(id: number) {
   });
 }
 
+export async function unificarDespesas(origemId: number, destinoId: number) {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    const origem = await db.getFirstAsync<Despesa>("SELECT * FROM despesas WHERE id = ? AND pago = 0", [origemId]);
+    const destino = await db.getFirstAsync<Despesa>("SELECT * FROM despesas WHERE id = ? AND pago = 0", [destinoId]);
+    if (!origem || !destino || origem.id === destino.id) throw new Error("As despesas selecionadas não estão mais disponíveis.");
+    const valor = origem.valor + destino.valor;
+    const mensagem = `Unificada com ${origem.nome} (${origem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em ${new Date().toLocaleDateString("pt-BR")}.`;
+    const observacao = [destino.observacao?.trim(), mensagem].filter(Boolean).join("\n");
+    await db.runAsync("UPDATE despesas SET valor = ?, observacao = ? WHERE id = ?", [valor, observacao, destino.id]);
+    await db.runAsync("DELETE FROM despesas WHERE id = ?", [origem.id]);
+    await db.runAsync("INSERT INTO unificacoes (natureza, nome_unificado, valor_unificado, nome_origem, valor_origem, nome_destino, valor_destino) VALUES (?, ?, ?, ?, ?, ?, ?)", ["Despesa", destino.nome, valor, origem.nome, origem.valor, destino.nome, destino.valor]);
+  });
+}
+
 function somarFrequencia(data: string, frequencia: Despesa["frequencia"]): string {
   if (frequencia === "mensal") return somarUmMes(data);
   const [ano, mes, dia] = data.split("-").map(Number);

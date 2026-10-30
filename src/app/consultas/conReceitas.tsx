@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import InfoButton from "../../components/infoButton";
 import {
   excluirReceita,
   listarReceitas,
@@ -18,7 +19,6 @@ import {
   type Receita,
 } from "../../database/dbGestor/dbReceitas";
 import { dataISOparaBR } from "../../utils/converterData";
-import InfoButton from "../../components/infoButton";
 
 // Situação de cada receita:
 // - recebida: já foi recebida (entra no saldo disponível)
@@ -120,6 +120,10 @@ export default function ConReceita() {
   // Abre o cadastro vazio, para uma nova receita
   const adicionar = () => {
     router.push("/cadastros/cadReceita" as never);
+  };
+
+  const unificar = () => {
+    router.push("/consultas/unificarReceitas" as never);
   };
 
   // Abre o cadastro em modo edição, com os dados da receita carregados
@@ -235,7 +239,7 @@ export default function ConReceita() {
               accessibilityLabel={`Marcar ${item.nome} como recebida`}
             >
               <Ionicons name="checkmark-circle-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.botaoReceberTexto}>Recebida</Text>
+              <Text style={styles.botaoReceberTexto}>Receber</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -258,7 +262,7 @@ export default function ConReceita() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Receitas</Text>
-        <InfoButton compacto titulo="Consulta de receitas" texto="Veja e gerencie as receitas cadastradas. O botão + cria uma receita; use a ação de recebimento para registrar quando o valor entrar." />
+        <InfoButton compacto titulo="Consulta de receitas" texto="Veja e gerencie as receitas cadastradas. O botão + cria uma receita; use a ação de recebimento para registrar quando o valor entrar. Em Unificar receitas a receber, escolha a receita que continuará e a que será somada. A operação fica em Históricos > Unificações." />
       </View>
 
       {/* Resumo com o botão "+" para adicionar receita */}
@@ -281,6 +285,10 @@ export default function ConReceita() {
         <Text style={styles.resumoDetalhe}>
           Recebido: {formatarReal(totalRecebido)}
         </Text>
+        <TouchableOpacity style={styles.botaoUnificar} onPress={unificar} activeOpacity={0.8}>
+          <Ionicons name="git-compare-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.botaoUnificarTexto}>Unificar receitas a receber</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Filtros: todas, recebidas, a receber e vencidas */}
@@ -375,6 +383,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   resumoDetalhe: { fontSize: 13, color: "#E0F2F1", marginTop: 4 },
+  botaoUnificar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#00796B", borderRadius: 10, paddingVertical: 11, marginTop: 14 },
+  botaoUnificarTexto: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
 
   // Filtros
   filtrosScroll: { height: 52, flexGrow: 0, flexShrink: 0, marginBottom: 12 },

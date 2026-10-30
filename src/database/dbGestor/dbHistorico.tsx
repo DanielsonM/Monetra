@@ -8,6 +8,12 @@ export type ResumoMes = {
 };
 
 export type GastoTipo = { tipo: string; total: number };
+export type UnificacaoHistorico = { id: number; natureza: string; nome_unificado: string; valor_unificado: number; nome_origem: string; valor_origem: number; nome_destino: string; valor_destino: number; data_unificacao: string };
+
+export async function listarUnificacoes(): Promise<UnificacaoHistorico[]> {
+  const db = await getDb();
+  return db.getAllAsync<UnificacaoHistorico>("SELECT * FROM unificacoes ORDER BY id DESC");
+}
 
 export type CategoriaPlanejada = {
   tipo: string;

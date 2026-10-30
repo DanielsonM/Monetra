@@ -40,12 +40,14 @@ export default function Menu() {
   const [cadastroAberto, setCadastroAberto] = useState(false);
   const [consultaAberto, setConsultaAberto] = useState(false);
   const [recursosAberto, setRecursosAberto] = useState(false);
+  const [historicosAberto, setHistoricosAberto] = useState(false);
 
   const navegarPara = (rota: string) => {
     setMenuAberto(false);
     setCadastroAberto(false);
     setConsultaAberto(false);
     setRecursosAberto(false);
+    setHistoricosAberto(false);
     router.push(rota as never);
   };
 
@@ -180,11 +182,29 @@ export default function Menu() {
 
             <TouchableOpacity
               style={styles.menuBotao}
-              onPress={() => navegarPara("/historico/historico")}
+              onPress={() => setHistoricosAberto(!historicosAberto)}
             >
               <IconeMenu nome="stats-chart-outline" cor="#F57C00" />
-              <Text style={styles.menuItem}>Histórico</Text>
+              <Text style={styles.menuItem}>Históricos</Text>
             </TouchableOpacity>
+            {historicosAberto && (
+              <View style={styles.submenu}>
+                <TouchableOpacity
+                  style={styles.submenuBotao}
+                  onPress={() => navegarPara("/historico/historico")}
+                >
+                  <IconeMenu nome="stats-chart-outline" cor="#F57C00" pequeno />
+                  <Text style={styles.submenuItem}>Histórico financeiro</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.submenuBotao}
+                  onPress={() => navegarPara("/historico/unificacoes")}
+                >
+                  <IconeMenu nome="git-compare-outline" cor="#00897B" pequeno />
+                  <Text style={styles.submenuItem}>Unificações</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </ScrollView>
         </>
       )}
@@ -273,7 +293,7 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
 
-  // Submenu (Cadastro e Consulta)
+  // Submenus de Cadastro, Consulta e Históricos
   submenu: {
     paddingLeft: 15,
   },
