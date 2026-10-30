@@ -58,9 +58,9 @@ export default function ConCard() {
 
       <Text style={styles.valor}>{formatarMoeda(saldoDisponivel)}</Text>
 
-      <Text style={styles.status}>
+      {/*<Text style={styles.status}>
         {saldoNegativo ? "Saldo negativo" : "Vai sobrar"}
-      </Text>
+      </Text>+*/}
     </View>
   );
 }

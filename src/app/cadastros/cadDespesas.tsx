@@ -248,9 +248,15 @@ export default function CadDespesas() {
         <Text style={styles.titulo}>
           {editando ? "Editar despesa" : "Nova despesa"}
         </Text>
-        <InfoButton compacto titulo="Cadastro de despesa" texto="Informe nome, valor e vencimento. Marque como fixa se a despesa se repetir mensalmente. Se marcar como paga, o valor sai do saldo disponível e o pagamento fica no histórico." />
+        <InfoButton compacto titulo="Cadastro de despesa" texto="Informe nome, valor e vencimento. Selecione a frequência semanal, mensal ou anual para despesas recorrentes. Se marcar como paga, o valor sai do saldo disponível e o pagamento fica no histórico." />
       </View>
 
+      <ScrollView
+        style={styles.formulario}
+        contentContainerStyle={styles.conteudoFormulario}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
       <Text style={styles.label}>Nome</Text>
       <TextInput
         style={styles.input}
@@ -400,6 +406,7 @@ export default function CadDespesas() {
           {editando ? "Salvar alterações" : "Salvar"}
         </Text>
       </TouchableOpacity>
+      </ScrollView>
 
       {/* Lista do combobox */}
       <Modal
@@ -452,6 +459,8 @@ export default function CadDespesas() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F5F5F5", padding: 20 },
+  formulario: { flex: 1 },
+  conteudoFormulario: { paddingBottom: 36 },
 
   // Cabeçalho com seta de voltar
   cabecalho: {

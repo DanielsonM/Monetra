@@ -4,12 +4,12 @@ import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ConCard from "../../components/conCard";
-import DespesasRecentes from "../../components/despesasRecentes";
+import InfoButton from "../../components/infoButton";
+import LancamentosRecentes from "../../components/lancamentosRecentes";
 import MenuPrincipal from "../../components/menu";
 import Provisao from "../../components/provisao";
 import ResumoFinanceiro from "../../components/resumoFinanceiro";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
-import InfoButton from "../../components/infoButton";
 
 export default function Home() {
   // Fonte do título (Poppins Bold)
@@ -38,11 +38,11 @@ export default function Home() {
       <View style={styles.header}>
         {/* Título centralizado */}
         <Text style={[styles.titulo, fonteCarregada && styles.tituloFonte]}>
-          Monetra
+          Mondi
         </Text>
 
         <View style={styles.ajuda}>
-          <InfoButton titulo="Como usar o Monetra" texto={"• Cadastre seus saldos e receitas para registrar o dinheiro disponível e o que espera receber.\n\n• Cadastre despesas com valor e vencimento. Marque como fixa se ela se repetir mensalmente.\n\n• Saldo disponível considera valores já recebidos e despesas já pagas.\n\n• Em Provisão, acompanhe o que falta receber ou pagar e veja o saldo projetado. Toque no botão de confirmação para registrar uma baixa.\n\n• Despesas Recentes permite confirmar pagamentos; despesas fixas avançam para o próximo vencimento.\n\n• Para juntar lançamentos pendentes, abra Consulta > Receitas ou Despesas e toque em Unificar. A operação aparece em Históricos > Unificações.\n\n• Em Históricos, consulte o histórico financeiro ou as unificações. Configurações reúne os avisos do app."} />
+          <InfoButton titulo="Como usar o Monetra" texto={"• Cadastre seus saldos e receitas para registrar o dinheiro disponível e o que espera receber.\n\n• Cadastre despesas com valor e vencimento. Marque como fixa se ela se repetir semanalmente, mensalmente ou anualmente.\n\n• Saldo disponível considera valores já recebidos e despesas já pagas.\n\n• Em Provisão, acompanhe o que falta receber ou pagar e veja o saldo projetado. Use os botões para registrar uma baixa.\n\n• Lançamentos Recentes mostra os últimos cadastros sem alterar o status.\n\n• Para juntar lançamentos pendentes, abra Consulta > Receitas ou Despesas e toque em Unificar. A operação aparece em Históricos > Unificações.\n\n• Em Históricos, consulte o histórico financeiro ou as unificações. Configurações reúne os avisos do app."} />
         </View>
 
         {/* Botão ☰ e menu suspenso */}
@@ -63,11 +63,8 @@ export default function Home() {
         {/* Provisão: caixa, a receber, a pagar e saldo projetado */}
         <Provisao aoLiquidar={atualizarCards} />
 
-        {/* Últimas despesas cadastradas */}
-        <DespesasRecentes
-          key={`recentes-${versao}`}
-          aoPagar={atualizarCards}
-        />
+        {/* Últimas receitas e despesas cadastradas, sem ações de baixa */}
+        <LancamentosRecentes key={`recentes-${versao}`} />
       </ScrollView>
     </SafeAreaView>
   );
