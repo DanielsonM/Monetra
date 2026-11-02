@@ -6,7 +6,9 @@ import {
   FlatList,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -76,6 +78,9 @@ export default function ConReceita() {
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [busca, setBusca] = useState("");
+  const [buscarNome, setBuscarNome] = useState(true);
+  const [buscarTipo, setBuscarTipo] = useState(false);
 
   const hoje = hojeISO();
 
@@ -101,12 +106,21 @@ export default function ConReceita() {
   }
 
   // Lista exibida de acordo com o filtro escolhido
-  const filtradas =
+  const porStatus =
     filtro === "todas"
       ? receitas
       : receitas.filter(
           (r) => statusDe(r, hoje) === STATUS_DO_FILTRO[filtro]
         );
+  const termo = busca.trim().toLocaleLowerCase("pt-BR");
+  const filtradas = porStatus.filter((r) => !termo || (buscarNome && r.nome.toLocaleLowerCase("pt-BR").includes(termo)) || (buscarTipo && r.tipo.toLocaleLowerCase("pt-BR").includes(termo)));
+  const placeholderBusca = buscarNome && buscarTipo
+    ? "Buscar por nome ou tipo"
+    : buscarNome
+      ? "Buscar por nome"
+      : buscarTipo
+        ? "Buscar por tipo"
+        : "Busca desativada";
   const totalFiltrado = filtradas.reduce((soma, r) => soma + r.valor, 0);
 
   const voltar = () => {
@@ -318,6 +332,12 @@ export default function ConReceita() {
         })}
       </ScrollView>
 
+      <TextInput style={styles.busca} value={busca} onChangeText={setBusca} placeholder={placeholderBusca} returnKeyType="search" accessibilityLabel={placeholderBusca} />
+      <View style={styles.opcoesBusca}>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) setBuscarTipo(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Tipo</Text><Switch value={buscarTipo} onValueChange={(ativo) => { setBuscarTipo(ativo); if (ativo) setBuscarNome(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarTipo ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por tipo" /></View>
+      </View>
+
       {/* Resultado do filtro (quantidade e soma) */}
       {filtro !== "todas" && (
         <Text style={styles.resultado}>
@@ -336,7 +356,7 @@ export default function ConReceita() {
           carregando ? null : (
             <View style={styles.vazio}>
               <Ionicons name="cash-outline" size={48} color="#BBBBBB" />
-              <Text style={styles.vazioTexto}>{MENSAGEM_VAZIO[filtro]}</Text>
+              <Text style={styles.vazioTexto}>{busca.trim() ? "Nenhuma receita encontrada" : MENSAGEM_VAZIO[filtro]}</Text>
             </View>
           )
         }
@@ -356,6 +376,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1A1A1A" },
+  busca: { backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A1A", marginBottom: 12 },
+  opcoesBusca: { flexDirection: "row", gap: 12, marginBottom: 12 },
+  opcaoBusca: { flex: 1, backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  opcaoBuscaTexto: { fontSize: 14, color: "#1A1A1A" },
 
   // Resumo com o total
   resumo: {

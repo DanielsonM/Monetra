@@ -65,6 +65,7 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       vencimento TEXT NOT NULL,
       observacao TEXT,
       recebido INTEGER NOT NULL DEFAULT 0,
+      fixa INTEGER NOT NULL DEFAULT 0,
       parcelas INTEGER NOT NULL DEFAULT 1,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
@@ -129,6 +130,9 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
     await db.execAsync(
       "ALTER TABLE receitas ADD COLUMN recebido INTEGER NOT NULL DEFAULT 0;"
     );
+  }
+  if (!colunasReceitas.some((c) => c.name === "fixa")) {
+    await db.execAsync("ALTER TABLE receitas ADD COLUMN fixa INTEGER NOT NULL DEFAULT 0;");
   }
   if (!colunasReceitas.some((c) => c.name === "parcelas")) {
     await db.execAsync("ALTER TABLE receitas ADD COLUMN parcelas INTEGER NOT NULL DEFAULT 1;");

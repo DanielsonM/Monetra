@@ -65,7 +65,7 @@ export async function restaurarBackup(texto: string) {
   const colunas: Record<(typeof tabelas)[number], string[]> = {
     despesas: ["id", "nome", "valor", "tipo", "vencimento", "pago", "observacao", "fixa", "frequencia", "criado_em"],
     pagamentos: ["id", "despesa_id", "nome", "tipo", "valor", "vencimento", "data_pagamento"],
-    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "criado_em"],
+    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "fixa", "criado_em"],
     unificacoes: ["id", "natureza", "nome_unificado", "valor_unificado", "nome_origem", "valor_origem", "nome_destino", "valor_destino", "data_unificacao"],
     orcamentos: ["tipo", "limite"],
     metas: ["id", "nome", "objetivo", "guardado", "prazo", "criado_em"],

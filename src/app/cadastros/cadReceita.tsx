@@ -93,6 +93,7 @@ export default function CadReceita() {
     editando ? null : new Date()
   );
   const [recebido, setRecebido] = useState(false);
+  const [fixa, setFixa] = useState(false);
   const [observacao, setObservacao] = useState("");
   const [campoData, setCampoData] = useState<CampoData | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -135,6 +136,7 @@ export default function CadReceita() {
         setDataEntrada(isoParaDate(r.data));
         setVencimento(isoParaDate(r.vencimento));
         setRecebido(r.recebido === 1);
+        setFixa(r.fixa === 1);
         setObservacao(r.observacao ?? "");
       })
       .catch((erro) => {
@@ -216,6 +218,7 @@ export default function CadReceita() {
       vencimento: paraISO(vencimento),
       observacao,
       recebido,
+      fixa,
       parcelas: parcelasNumero,
     };
 
@@ -350,6 +353,13 @@ export default function CadReceita() {
         {seletorData("vencimento")}
 
         {/* Recebida: se ligado, o valor entra no saldo disponível */}
+        <View style={styles.linhaSwitch}>
+          <View style={styles.textosSwitch}>
+            <Text style={styles.switchTitulo}>Receita fixa</Text>
+            <Text style={styles.switchSubtitulo}>{fixa ? "Receita recorrente" : "Receita única"}</Text>
+          </View>
+          <Switch value={fixa} onValueChange={setFixa} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={fixa ? "#00897B" : "#F4F4F4"} />
+        </View>
         <View style={styles.linhaSwitch}>
           <View style={styles.textosSwitch}>
             <Text style={styles.switchTitulo}>Recebido</Text>

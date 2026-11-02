@@ -5,7 +5,9 @@ import {
   Alert,
   FlatList,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -26,8 +28,23 @@ export default function ConDespesa() {
   const router = useRouter();
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [busca, setBusca] = useState("");
+  const [buscarNome, setBuscarNome] = useState(true);
+  const [buscarTipo, setBuscarTipo] = useState(false);
 
-  const total = despesas.reduce((soma, d) => soma + d.valor, 0);
+  const despesasFiltradas = despesas.filter((d) => {
+    const termo = busca.trim().toLocaleLowerCase("pt-BR");
+    return !termo || (buscarNome && d.nome.toLocaleLowerCase("pt-BR").includes(termo)) || (buscarTipo && d.tipo.toLocaleLowerCase("pt-BR").includes(termo));
+  });
+  const placeholderBusca = buscarNome && buscarTipo
+    ? "Buscar por nome ou tipo"
+    : buscarNome
+      ? "Buscar por nome"
+      : buscarTipo
+        ? "Buscar por tipo"
+        : "Busca desativada";
+
+  const total = despesasFiltradas.reduce((soma, d) => soma + d.valor, 0);
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -136,8 +153,8 @@ export default function ConDespesa() {
       <View style={styles.resumo}>
         <View style={styles.resumoTopo}>
           <Text style={styles.resumoLabel}>
-            Total ({despesas.length}{" "}
-            {despesas.length === 1 ? "despesa" : "despesas"})
+            Total ({despesasFiltradas.length}{" "}
+            {despesasFiltradas.length === 1 ? "despesa" : "despesas"})
           </Text>
 
           <TouchableOpacity
@@ -155,8 +172,14 @@ export default function ConDespesa() {
         </TouchableOpacity>
       </View>
 
+      <TextInput style={styles.busca} value={busca} onChangeText={setBusca} placeholder={placeholderBusca} returnKeyType="search" accessibilityLabel={placeholderBusca} />
+      <View style={styles.opcoesBusca}>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) setBuscarTipo(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Tipo</Text><Switch value={buscarTipo} onValueChange={(ativo) => { setBuscarTipo(ativo); if (ativo) setBuscarNome(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarTipo ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por tipo" /></View>
+      </View>
+
       <FlatList
-        data={despesas}
+        data={despesasFiltradas}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
@@ -165,7 +188,7 @@ export default function ConDespesa() {
           carregando ? null : (
             <View style={styles.vazio}>
               <Ionicons name="receipt-outline" size={48} color="#BBBBBB" />
-              <Text style={styles.vazioTexto}>Nenhuma despesa cadastrada</Text>
+              <Text style={styles.vazioTexto}>{busca.trim() ? "Nenhuma despesa encontrada" : "Nenhuma despesa cadastrada"}</Text>
             </View>
           )
         }
@@ -185,6 +208,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1A1A1A" },
+  busca: { backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A1A", marginBottom: 12 },
+  opcoesBusca: { flexDirection: "row", gap: 12, marginBottom: 12 },
+  opcaoBusca: { flex: 1, backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  opcaoBuscaTexto: { fontSize: 14, color: "#1A1A1A" },
 
   // Resumo com o total
   resumo: {
