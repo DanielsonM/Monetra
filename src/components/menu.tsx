@@ -102,6 +102,11 @@ export default function Menu() {
                   <IconeMenu nome="receipt-outline" cor="#D32F2F" pequeno />
                   <Text style={styles.submenuItem}>Despesas</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/cadAplicacao")}>
+                  <IconeMenu nome="trending-up-outline" cor="#1565C0" pequeno />
+                  <Text style={styles.submenuItem}>Aplicações</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -130,6 +135,11 @@ export default function Menu() {
                 >
                   <IconeMenu nome="receipt-outline" cor="#D32F2F" pequeno />
                   <Text style={styles.submenuItem}>Despesas</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/consultas/aplicacoes")}>
+                  <IconeMenu nome="trending-up-outline" cor="#1565C0" pequeno />
+                  <Text style={styles.submenuItem}>Aplicações</Text>
                 </TouchableOpacity>
               </View>
             )}

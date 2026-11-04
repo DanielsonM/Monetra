@@ -1,102 +1,97 @@
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState } from "react";
+import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { totalDespesasPagas } from "../database/dbGestor/dbDespesas";
 import { totalReceitasRecebidas } from "../database/dbGestor/dbReceitas";
+import { totalAplicacoes } from "../database/dbGestor/dbAplicacoes";
 import InfoButton from "./infoButton";
 
-// Formata valores para Real brasileiro
-const formatarMoeda = (valor: number) =>
-  valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export default function ConCard() {
+export default function ConCard({ onPageChange }: { onPageChange?: (pagina: number) => void }) {
+  const { width: larguraTela } = useWindowDimensions();
+  const larguraCard = larguraTela - 40;
+  const scrollRef = useRef<ScrollView>(null);
   const [somaReceitas, setSomaReceitas] = useState(0);
   const [somaDespesas, setSomaDespesas] = useState(0);
+  const [somaAplicacoes, setSomaAplicacoes] = useState(0);
+  const [pagina, setPagina] = useState(0);
 
-  // Recarrega sempre que a Home volta a ficar em foco (ex.: depois de cadastrar)
-  useFocusEffect(
-    useCallback(() => {
-      let ativo = true;
+  useFocusEffect(useCallback(() => {
+    let ativo = true;
+    Promise.all([totalReceitasRecebidas(), totalDespesasPagas(), totalAplicacoes()])
+      .then(([receitas, despesas, aplicacoes]) => {
+        if (!ativo) return;
+        setSomaReceitas(receitas);
+        setSomaDespesas(despesas);
+        setSomaAplicacoes(aplicacoes);
+      })
+      .catch((erro) => console.error(erro));
+    return () => { ativo = false; };
+  }, []));
 
-      (async () => {
-        try {
-          const [receitas, despesas] = await Promise.all([
-            totalReceitasRecebidas(),
-            totalDespesasPagas(),
-          ]);
-          if (ativo) {
-            setSomaReceitas(receitas);
-            setSomaDespesas(despesas);
-          }
-        } catch (erro) {
-          console.error(erro);
-        }
-      })();
+  const aoRolar = (evento: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const indice = Math.round(evento.nativeEvent.contentOffset.x / larguraCard);
+    setPagina(indice);
+    onPageChange?.(indice);
+  };
 
-      return () => {
-        ativo = false;
-      };
-    }, [])
-  );
+  const irParaPagina = (indice: number) => {
+    setPagina(indice);
+    onPageChange?.(indice);
+    scrollRef.current?.scrollTo({ x: indice * larguraCard, animated: true });
+  };
 
-  // Saldo disponível = receitas já recebidas - despesas já pagas
-  // (despesa pendente ainda não debita do saldo)
   const saldoDisponivel = somaReceitas - somaDespesas;
-  const saldoNegativo = saldoDisponivel < 0;
+  const negativo = saldoDisponivel < 0;
 
   return (
-    <View
-      style={[
-        styles.cardSaldo,
-        { backgroundColor: saldoNegativo ? "#D32F2F" : "#2E7D32" },
-      ]}
-    >
-      <View style={styles.tituloLinha}>
-        <Text style={styles.labelSaldo}>Saldo disponível</Text>
-        <InfoButton compacto titulo="Saldo disponível" texto="Mostra o dinheiro que já entrou (receitas recebidas e saldos cadastrados) menos as despesas marcadas como pagas. Despesas pendentes ainda não são descontadas." />
+    <View style={styles.container}>
+      <ScrollView ref={scrollRef} horizontal pagingEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={aoRolar} style={styles.carrossel}>
+        <View style={[styles.pagina, { width: larguraCard }]}>
+          <View style={[styles.card, { backgroundColor: negativo ? "#D32F2F" : "#2E7D32" }]}>
+            <View style={styles.tituloLinha}>
+              <Text style={styles.rotulo}>Saldo disponível</Text>
+              <InfoButton compacto titulo="Saldo disponível" texto="Mostra as receitas recebidas menos as despesas pagas. Aplicações financeiras são mostradas no card ao lado e não entram neste saldo." />
+            </View>
+            <Text style={styles.valor}>{moeda(saldoDisponivel)}</Text>
+            <Text style={styles.toque}>Deslize para ver as aplicações</Text>
+          </View>
+        </View>
+        <View style={[styles.pagina, { width: larguraCard }]}>
+          <TouchableOpacity style={[styles.card, styles.cardAplicacoes]} activeOpacity={0.85} onPress={() => router.push("/consultas/aplicacoes" as never)} accessibilityRole="button" accessibilityLabel={`Aplicações financeiras, total de ${moeda(somaAplicacoes)}. Abrir consulta`}>
+            <View style={styles.tituloLinha}>
+              <Text style={styles.rotulo}>Aplicações financeiras</Text>
+              <Ionicons name="chevron-forward-circle-outline" size={24} color="#E3F2FD" />
+            </View>
+            <Text style={styles.valor}>{moeda(somaAplicacoes)}</Text>
+            <Text style={styles.toque}>Toque para consultar ou adicionar</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+      <View style={styles.indicadores} accessibilityLabel={`Card ${pagina + 1} de 2`}>
+        {[0, 1].map((indice) => (
+          <TouchableOpacity key={indice} onPress={() => irParaPagina(indice)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Mostrar card ${indice + 1}`} accessibilityState={{ selected: pagina === indice }}>
+            <View style={[styles.ponto, pagina === indice && styles.pontoAtivo]} />
+          </TouchableOpacity>
+        ))}
       </View>
-
-      <Text style={styles.valor}>{formatarMoeda(saldoDisponivel)}</Text>
-
-      {/*<Text style={styles.status}>
-        {saldoNegativo ? "Saldo negativo" : "Vai sobrar"}
-      </Text>+*/}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  cardSaldo: {
-    height: 180,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 25,
-    padding: 20,
-
-    shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 6,
-  },
-
-  labelSaldo: {
-    fontSize: 16,
-    color: "#E8F5E9",
-    marginBottom: 8,
-  },
-  tituloLinha: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 8 },
-
-  valor: {
-    fontSize: 34,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-  },
-
-  status: {
-    fontSize: 18,
-    marginTop: 10,
-    color: "#FFFFFF",
-  },
+  container: { marginBottom: 25 },
+  carrossel: { overflow: "visible" },
+  pagina: { paddingRight: 0 },
+  card: { height: 180, borderRadius: 30, justifyContent: "center", alignItems: "center", padding: 20, shadowColor: "#000000", shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.2, shadowRadius: 5, elevation: 6 },
+  cardAplicacoes: { backgroundColor: "#1565C0" },
+  tituloLinha: { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 8 },
+  rotulo: { fontSize: 16, color: "#E8F5E9" },
+  valor: { fontSize: 32, fontWeight: "bold", color: "#FFFFFF" },
+  toque: { fontSize: 12, color: "#E3F2FD", marginTop: 10 },
+  indicadores: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 2, marginTop: 8 },
+  ponto: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#BDBDBD", marginHorizontal: 5 },
+  pontoAtivo: { width: 18, backgroundColor: "#00897B" },
 });

@@ -25,6 +25,7 @@ import {
   inserirReceita,
 } from "../../database/dbGestor/dbReceitas";
 import InfoButton from "../../components/infoButton";
+import { TIPO_RECEITA_SAQUE } from "../../database/dbGestor/dbAplicacoes";
 
 // Edite as opções de tipo de receita aqui
 const TIPOS_RECEITA = [
@@ -34,13 +35,14 @@ const TIPOS_RECEITA = [
   "Investimentos",
   "Aluguel recebido",
   "Bonificação",
+  TIPO_RECEITA_SAQUE,
   "Reembolso",
   "Presente",
   "Outros",
 ];
 
-// Qual campo de data está sendo escolhido no seletor
-type CampoData = "entrada" | "vencimento";
+// Campo de data exibido no cadastro
+type CampoData = "previsao";
 
 // Máscara de moeda: o usuário digita só números e o valor é montado
 // da direita para a esquerda (5 → 0,05 | 700 → 7,00 | 123456 → 1.234,56)
@@ -89,7 +91,7 @@ export default function CadReceita() {
   const [dataEntrada, setDataEntrada] = useState<Date | null>(
     editando ? null : new Date()
   );
-  const [vencimento, setVencimento] = useState<Date | null>(
+  const [dataPrevisao, setDataPrevisao] = useState<Date | null>(
     editando ? null : new Date()
   );
   const [recebido, setRecebido] = useState(false);
@@ -134,7 +136,7 @@ export default function CadReceita() {
         setParcelas(String(r.parcelas ?? 1));
         setTipo(r.tipo);
         setDataEntrada(isoParaDate(r.data));
-        setVencimento(isoParaDate(r.vencimento));
+        setDataPrevisao(isoParaDate(r.vencimento));
         setRecebido(r.recebido === 1);
         setFixa(r.fixa === 1);
         setObservacao(r.observacao ?? "");
@@ -169,15 +171,14 @@ export default function CadReceita() {
 
     if (evento.type !== "set" || !dataEscolhida) return;
 
-    if (campo === "entrada") setDataEntrada(dataEscolhida);
-    if (campo === "vencimento") setVencimento(dataEscolhida);
+    if (campo === "previsao") setDataPrevisao(dataEscolhida);
   };
 
   // Seletor de data exibido logo abaixo do campo que está sendo editado
   const seletorData = (campo: CampoData) => {
     if (campoData !== campo) return null;
 
-    const atual = campo === "entrada" ? dataEntrada : vencimento;
+    const atual = dataPrevisao;
 
     return (
       <DateTimePicker
@@ -199,13 +200,13 @@ export default function CadReceita() {
       isNaN(valorNumero) ||
       !tipo ||
       !dataEntrada ||
-      !vencimento ||
+      !dataPrevisao ||
       !Number.isInteger(parcelasNumero) ||
       parcelasNumero < 1
     ) {
       Alert.alert(
         "Atenção",
-        "Preencha nome, valor, tipo, datas e informe um número inteiro de parcelas maior que zero."
+      "Preencha nome, valor, tipo, previsão de recebimento e informe um número inteiro de parcelas maior que zero."
       );
       return;
     }
@@ -215,7 +216,7 @@ export default function CadReceita() {
       valor: valorNumero,
       tipo,
       data: paraISO(dataEntrada),
-      vencimento: paraISO(vencimento),
+      vencimento: paraISO(dataPrevisao),
       observacao,
       recebido,
       fixa,
@@ -252,7 +253,7 @@ export default function CadReceita() {
         <Text style={styles.titulo}>
           {editando ? "Editar receita" : "Nova receita"}
         </Text>
-        <InfoButton compacto titulo="Cadastro de receita" texto="Informe a origem, o valor e as datas previstas. Marque como recebida quando o dinheiro entrar; assim ele passa a compor o saldo disponível." />
+        <InfoButton compacto titulo="Cadastro de receita" texto="Informe a origem, o valor e a previsão de recebimento. Marque como recebida quando o dinheiro entrar; assim ele passa a compor o saldo disponível." />
       </View>
 
       <ScrollView
@@ -324,33 +325,20 @@ export default function CadReceita() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.label}>Data de entrada</Text>
+        <Text style={styles.label}>Previsão de recebimento</Text>
         <TouchableOpacity
           style={styles.combo}
-          onPress={() => setCampoData("entrada")}
+          onPress={() => setCampoData("previsao")}
           activeOpacity={0.7}
         >
           <Text
-            style={dataEntrada ? styles.comboTexto : styles.comboPlaceholder}
+            style={dataPrevisao ? styles.comboTexto : styles.comboPlaceholder}
           >
-            {dataEntrada ? paraBR(dataEntrada) : "Selecione a data"}
+            {dataPrevisao ? paraBR(dataPrevisao) : "Selecione a data prevista"}
           </Text>
           <Ionicons name="calendar-outline" size={20} color="#666666" />
         </TouchableOpacity>
-        {seletorData("entrada")}
-
-        <Text style={styles.label}>Vencimento</Text>
-        <TouchableOpacity
-          style={styles.combo}
-          onPress={() => setCampoData("vencimento")}
-          activeOpacity={0.7}
-        >
-          <Text style={vencimento ? styles.comboTexto : styles.comboPlaceholder}>
-            {vencimento ? paraBR(vencimento) : "Selecione o vencimento"}
-          </Text>
-          <Ionicons name="calendar-outline" size={20} color="#666666" />
-        </TouchableOpacity>
-        {seletorData("vencimento")}
+        {seletorData("previsao")}
 
         {/* Recebida: se ligado, o valor entra no saldo disponível */}
         <View style={styles.linhaSwitch}>

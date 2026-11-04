@@ -81,6 +81,8 @@ export default function ConReceita() {
   const [busca, setBusca] = useState("");
   const [buscarNome, setBuscarNome] = useState(true);
   const [buscarTipo, setBuscarTipo] = useState(false);
+  const [tipoSelecionado, setTipoSelecionado] = useState("Todos");
+  const [tiposAbertos, setTiposAbertos] = useState(false);
 
   const hoje = hojeISO();
 
@@ -113,15 +115,26 @@ export default function ConReceita() {
           (r) => statusDe(r, hoje) === STATUS_DO_FILTRO[filtro]
         );
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
-  const filtradas = porStatus.filter((r) => !termo || (buscarNome && r.nome.toLocaleLowerCase("pt-BR").includes(termo)) || (buscarTipo && r.tipo.toLocaleLowerCase("pt-BR").includes(termo)));
+  const tiposDisponiveis = [
+    "Todos",
+    ...Array.from(new Set(receitas.map((receita) => receita.tipo))).sort((a, b) =>
+      a.localeCompare(b, "pt-BR")
+    ),
+  ];
+  const filtradas = porStatus.filter((r) => {
+    const nomeCorresponde = !buscarNome || !termo || r.nome.toLocaleLowerCase("pt-BR").includes(termo);
+    const tipoCorresponde = !buscarTipo || tipoSelecionado === "Todos" || r.tipo === tipoSelecionado;
+    return nomeCorresponde && tipoCorresponde;
+  });
   const placeholderBusca = buscarNome && buscarTipo
     ? "Buscar por nome ou tipo"
     : buscarNome
       ? "Buscar por nome"
       : buscarTipo
-        ? "Buscar por tipo"
+        ? "Selecione um tipo"
         : "Busca desativada";
   const totalFiltrado = filtradas.reduce((soma, r) => soma + r.valor, 0);
+  const pesquisaAtiva = (buscarNome && Boolean(busca.trim())) || (buscarTipo && tipoSelecionado !== "Todos");
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -332,11 +345,25 @@ export default function ConReceita() {
         })}
       </ScrollView>
 
-      <TextInput style={styles.busca} value={busca} onChangeText={setBusca} placeholder={placeholderBusca} returnKeyType="search" accessibilityLabel={placeholderBusca} />
-      <View style={styles.opcoesBusca}>
-        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) setBuscarTipo(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
-        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Tipo</Text><Switch value={buscarTipo} onValueChange={(ativo) => { setBuscarTipo(ativo); if (ativo) setBuscarNome(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarTipo ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por tipo" /></View>
+      <View style={styles.linhaBusca}>
+        <TextInput style={[styles.busca, !buscarNome && styles.buscaDesativada]} value={busca} onChangeText={setBusca} placeholder={placeholderBusca} editable={buscarNome} returnKeyType="search" accessibilityLabel={placeholderBusca} />
+        {pesquisaAtiva && <View style={styles.somaBusca} accessibilityLabel={`Soma dos resultados: ${formatarReal(totalFiltrado)}`}><Text style={styles.somaBuscaLabel}>Soma</Text><Text style={styles.somaBuscaValor} numberOfLines={1} adjustsFontSizeToFit>{formatarReal(totalFiltrado)}</Text></View>}
       </View>
+      <View style={styles.opcoesBusca}>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) { setBuscarTipo(false); setTiposAbertos(false); } setBusca(""); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Tipo</Text><Switch value={buscarTipo} onValueChange={(ativo) => { setBuscarTipo(ativo); if (ativo) { setBuscarNome(false); setTipoSelecionado("Todos"); } setBusca(""); setTiposAbertos(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarTipo ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por tipo" /></View>
+      </View>
+      {buscarTipo && <View style={styles.seletorTipoContainer}>
+        <TouchableOpacity style={styles.seletorTipo} onPress={() => setTiposAbertos((aberto) => !aberto)} accessibilityRole="button" accessibilityLabel={`Tipo selecionado: ${tipoSelecionado}`} accessibilityState={{ expanded: tiposAbertos }}>
+          <Text style={styles.seletorTipoTexto} numberOfLines={1}>{tipoSelecionado}</Text>
+          <Ionicons name={tiposAbertos ? "chevron-up" : "chevron-down"} size={18} color="#00897B" />
+        </TouchableOpacity>
+        {tiposAbertos && <ScrollView style={styles.listaTipos} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+          {tiposDisponiveis.map((tipo) => <TouchableOpacity key={tipo} style={[styles.opcaoTipo, tipoSelecionado === tipo && styles.opcaoTipoAtiva]} onPress={() => { setTipoSelecionado(tipo); setTiposAbertos(false); }} accessibilityRole="button" accessibilityState={{ selected: tipoSelecionado === tipo }}>
+            <Text style={[styles.opcaoTipoTexto, tipoSelecionado === tipo && styles.opcaoTipoTextoAtiva]}>{tipo}</Text>
+          </TouchableOpacity>)}
+        </ScrollView>}
+      </View>}
 
       {/* Resultado do filtro (quantidade e soma) */}
       {filtro !== "todas" && (
@@ -356,7 +383,7 @@ export default function ConReceita() {
           carregando ? null : (
             <View style={styles.vazio}>
               <Ionicons name="cash-outline" size={48} color="#BBBBBB" />
-              <Text style={styles.vazioTexto}>{busca.trim() ? "Nenhuma receita encontrada" : MENSAGEM_VAZIO[filtro]}</Text>
+              <Text style={styles.vazioTexto}>{busca.trim() || (buscarTipo && tipoSelecionado !== "Todos") ? "Nenhuma receita encontrada" : MENSAGEM_VAZIO[filtro]}</Text>
             </View>
           )
         }
@@ -376,10 +403,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1A1A1A" },
-  busca: { backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A1A", marginBottom: 12 },
+  linhaBusca: { flexDirection: "row", alignItems: "stretch", gap: 8, marginBottom: 12 },
+  busca: { flex: 1, minWidth: 0, backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A1A" },
+  buscaDesativada: { color: "#888888" },
+  somaBusca: { width: 124, justifyContent: "center", backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: "#E0E0E0" },
+  somaBuscaLabel: { fontSize: 11, color: "#777777" },
+  somaBuscaValor: { fontSize: 13, fontWeight: "bold", color: "#1A1A1A", marginTop: 2 },
   opcoesBusca: { flexDirection: "row", gap: 12, marginBottom: 12 },
   opcaoBusca: { flex: 1, backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   opcaoBuscaTexto: { fontSize: 14, color: "#1A1A1A" },
+  seletorTipoContainer: { marginBottom: 12, zIndex: 2 },
+  seletorTipo: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: "#D7E8E4" },
+  seletorTipoTexto: { flex: 1, color: "#1A1A1A", fontSize: 15 },
+  listaTipos: { maxHeight: 180, backgroundColor: "#FFFFFF", borderRadius: 12, marginTop: 4, borderWidth: 1, borderColor: "#E0E0E0", elevation: 4 },
+  opcaoTipo: { minHeight: 44, justifyContent: "center", paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EEEEEE" },
+  opcaoTipoAtiva: { backgroundColor: "#E8F5F2" },
+  opcaoTipoTexto: { fontSize: 14, color: "#333333" },
+  opcaoTipoTextoAtiva: { color: "#00796B", fontWeight: "bold" },
 
   // Resumo com o total
   resumo: {

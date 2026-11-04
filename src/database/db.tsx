@@ -70,6 +70,13 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS aplicacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      banco TEXT NOT NULL,
+      valor REAL NOT NULL,
+      criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+
     CREATE TABLE IF NOT EXISTS unificacoes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       natureza TEXT NOT NULL,

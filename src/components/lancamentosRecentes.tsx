@@ -39,6 +39,7 @@ const ICONES: Record<string, { nome: NomeIcone; cor: string }> = {
   Viagem: { nome: "airplane-outline", cor: "#0097A7" },
   Manutenção: { nome: "construct-outline", cor: "#757575" },
   Investimento: { nome: "trending-up-outline", cor: "#2E7D32" },
+  "Saque de aplicação": { nome: "cash-outline", cor: "#1565C0" },
   Impostos: { nome: "document-text-outline", cor: "#546E7A" },
   "Salário Funcionário": { nome: "people-outline", cor: "#3949AB" },
   Salário: { nome: "cash-outline", cor: "#2E7D32" },
