@@ -49,7 +49,7 @@ export async function excluirMeta(id: number) {
 
 export async function criarBackup(): Promise<string> {
   const db = await getDb();
-  const tabelas = ["despesas", "pagamentos", "receitas", "aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"];
+  const tabelas = ["despesas", "pagamentos", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"];
   const dados: Record<string, unknown[]> = {};
   for (const tabela of tabelas) dados[tabela] = await db.getAllAsync(`SELECT * FROM ${tabela}`);
   return JSON.stringify({ app: "Monetra", formato: 1, criadoEm: new Date().toISOString(), dados });
@@ -58,15 +58,17 @@ export async function criarBackup(): Promise<string> {
 export async function restaurarBackup(texto: string) {
   const backup = JSON.parse(texto) as { app?: string; formato?: number; dados?: Record<string, unknown[]> };
   if (backup.app !== "Monetra" || backup.formato !== 1 || !backup.dados) throw new Error("Arquivo de backup inválido.");
-  const tabelas = ["despesas", "pagamentos", "receitas", "aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"] as const;
+  const tabelas = ["despesas", "pagamentos", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"] as const;
   const tabelasObrigatorias = ["despesas", "pagamentos", "receitas", "orcamentos", "metas", "configuracoes"] as const;
   if (tabelasObrigatorias.some((tabela) => !Array.isArray(backup.dados?.[tabela]))) throw new Error("Arquivo de backup incompleto.");
   const db = await getDb();
   const colunas: Record<(typeof tabelas)[number], string[]> = {
     despesas: ["id", "nome", "valor", "tipo", "vencimento", "pago", "observacao", "fixa", "frequencia", "criado_em"],
     pagamentos: ["id", "despesa_id", "nome", "tipo", "valor", "vencimento", "data_pagamento"],
-    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "fixa", "criado_em"],
-    aplicacoes: ["id", "banco", "valor", "criado_em"],
+    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "fixa", "parcelas", "banco_id", "criado_em"],
+    bancos: ["id", "nome", "cor", "criado_em"],
+    aplicacoes: ["id", "banco", "valor", "banco_id", "criado_em"],
+    saques_aplicacoes: ["id", "aplicacao_id", "banco_id", "banco_nome", "banco_cor", "valor", "data", "receita_id", "criado_em"],
     unificacoes: ["id", "natureza", "nome_unificado", "valor_unificado", "nome_origem", "valor_origem", "nome_destino", "valor_destino", "data_unificacao"],
     orcamentos: ["tipo", "limite"],
     metas: ["id", "nome", "objetivo", "guardado", "prazo", "criado_em"],
@@ -85,4 +87,16 @@ export async function restaurarBackup(texto: string) {
       }
     }
   });
+
+  // Backups antigos guardavam o nome do banco diretamente na aplicação.
+  // Recria registros básicos para que essas aplicações continuem selecionáveis.
+  if (!Array.isArray(backup.dados.bancos)) {
+    await db.execAsync(`
+      INSERT OR IGNORE INTO bancos (nome, cor)
+      SELECT DISTINCT TRIM(banco), '#1565C0' FROM aplicacoes WHERE TRIM(banco) <> '';
+      UPDATE aplicacoes
+      SET banco_id = (SELECT id FROM bancos WHERE bancos.nome = aplicacoes.banco COLLATE NOCASE)
+      WHERE banco_id IS NULL;
+    `);
+  }
 }

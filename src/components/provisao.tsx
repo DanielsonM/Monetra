@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import {
@@ -15,6 +15,8 @@ import {
 import { sincronizarNotificacoes } from "../services/notificacoes";
 import { dataISOparaBR } from "../utils/converterData";
 import InfoButton from "./infoButton";
+import { listarBancos, type Banco } from "../database/dbGestor/dbBancos";
+import { ModalSeletorBanco } from "./seletorBanco";
 
 // Quantos itens aparecem na lista antes de "Ver todas"
 const LIMITE = 5;
@@ -57,17 +59,21 @@ type ProvisaoProps = {
 };
 
 export default function Provisao({ aoLiquidar }: ProvisaoProps) {
+  const router = useRouter();
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
+  const [bancos, setBancos] = useState<Banco[]>([]);
+  const [receitaParaReceber, setReceitaParaReceber] = useState<Item | null>(null);
   const [aba, setAba] = useState<Aba>("todas");
   const [verTodas, setVerTodas] = useState(false);
   const [aberto, setAberto] = useState(false); // começa fechado
 
   const carregar = useCallback(async () => {
     try {
-      const [r, d] = await Promise.all([listarReceitas(), listarDespesas()]);
+      const [r, d, listaBancos] = await Promise.all([listarReceitas(), listarDespesas(), listarBancos()]);
       setReceitas(r);
       setDespesas(d);
+      setBancos(listaBancos);
     } catch (erro) {
       console.error(erro);
     }
@@ -137,21 +143,29 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
   const liquidar = (item: Item) => {
     const receita = item.tipo === "receita";
 
+    if (receita) {
+      if (bancos.length === 0) {
+        Alert.alert("Cadastre um banco", "Para registrar o recebimento, primeiro cadastre o banco onde o valor entrou.", [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Cadastrar banco", onPress: () => router.push("/cadastros/cadBanco" as never) },
+        ]);
+      } else {
+        setReceitaParaReceber(item);
+      }
+      return;
+    }
+
     Alert.alert(
-      receita ? "Confirmar recebimento" : "Confirmar pagamento",
-      `${receita ? "Receber" : "Pagar"} "${item.nome}" (${formatarMoeda(item.valor)})?`,
+      "Confirmar pagamento",
+      `Pagar "${item.nome}" (${formatarMoeda(item.valor)})?`,
       [
         { text: "Cancelar", style: "cancel" },
         {
-          text: receita ? "Receber" : "Pagar",
+          text: "Pagar",
           onPress: async () => {
             try {
-              if (receita) {
-                await receberReceita(item.id);
-              } else {
-                await pagarDespesa(item.id);
-                await sincronizarNotificacoes();
-              }
+              await pagarDespesa(item.id);
+              await sincronizarNotificacoes();
 
               await carregar();
               aoLiquidar?.();
@@ -163,6 +177,19 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
         },
       ]
     );
+  };
+
+  const selecionarBancoDoRecebimento = async (bancoId: number | null) => {
+    if (bancoId === null || !receitaParaReceber) return;
+    try {
+      await receberReceita(receitaParaReceber.id, bancoId);
+      setReceitaParaReceber(null);
+      await carregar();
+      aoLiquidar?.();
+    } catch (erro) {
+      console.error(erro);
+      Alert.alert("Erro", "Não foi possível registrar o recebimento.");
+    }
   };
 
   return (
@@ -317,6 +344,7 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
       )}
         </>
       )}
+      <ModalSeletorBanco bancos={bancos} visivel={receitaParaReceber !== null} valor={null} onFechar={() => setReceitaParaReceber(null)} onSelecionar={selecionarBancoDoRecebimento} />
     </View>
   );
 }

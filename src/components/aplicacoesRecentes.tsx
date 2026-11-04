@@ -6,6 +6,7 @@ import { listarAplicacoes, type Aplicacao } from "../database/dbGestor/dbAplicac
 import InfoButton from "./infoButton";
 
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const dataBR = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}/${data.slice(0, 4)}`;
 
 export default function AplicacoesRecentes() {
   const [aplicacoes, setAplicacoes] = useState<Aplicacao[]>([]);
@@ -39,8 +40,11 @@ export default function AplicacoesRecentes() {
           <View style={styles.lista}>
             {aplicacoes.map((aplicacao) => (
               <TouchableOpacity key={aplicacao.id} style={styles.item} activeOpacity={0.75} onPress={() => router.push({ pathname: "/cadastros/cadAplicacao", params: { id: String(aplicacao.id) } } as never)}>
-                <View style={styles.icone}><Ionicons name="business-outline" size={22} color="#FFFFFF" /></View>
-                <Text style={styles.banco} numberOfLines={1}>{aplicacao.banco}</Text>
+                <View style={[styles.icone, { backgroundColor: aplicacao.banco_cor || "#1565C0" }]}><Ionicons name="business-outline" size={22} color="#FFFFFF" /></View>
+                <View style={styles.infoBanco}>
+                  <Text style={styles.banco} numberOfLines={1}>{aplicacao.banco}</Text>
+                  {aplicacao.ultimo_saque_valor != null && aplicacao.ultimo_saque_data && <Text style={styles.movimento} numberOfLines={1}>Último saque: {moeda(aplicacao.ultimo_saque_valor)} · {dataBR(aplicacao.ultimo_saque_data)}</Text>}
+                </View>
                 <Text style={styles.valor}>{moeda(aplicacao.valor)}</Text>
               </TouchableOpacity>
             ))}
@@ -69,6 +73,8 @@ const styles = StyleSheet.create({
   item: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E6E6E6", paddingBottom: 9 },
   icone: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#1565C0", justifyContent: "center", alignItems: "center" },
   banco: { flex: 1, minWidth: 0, color: "#1A1A1A", fontSize: 15, fontWeight: "bold" },
+  infoBanco: { flex: 1, minWidth: 0, gap: 3 },
+  movimento: { color: "#666666", fontSize: 11 },
   valor: { color: "#1A1A1A", fontSize: 14, fontWeight: "bold" },
   vazio: { color: "#999999", fontSize: 14, textAlign: "center", paddingVertical: 8 },
   verTodas: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingTop: 3 },

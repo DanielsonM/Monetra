@@ -2,8 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -26,6 +26,8 @@ import {
 } from "../../database/dbGestor/dbReceitas";
 import InfoButton from "../../components/infoButton";
 import { TIPO_RECEITA_SAQUE } from "../../database/dbGestor/dbAplicacoes";
+import { listarBancos, type Banco } from "../../database/dbGestor/dbBancos";
+import SeletorBanco from "../../components/seletorBanco";
 
 // Edite as opções de tipo de receita aqui
 const TIPOS_RECEITA = [
@@ -95,6 +97,8 @@ export default function CadReceita() {
     editando ? null : new Date()
   );
   const [recebido, setRecebido] = useState(false);
+  const [bancos, setBancos] = useState<Banco[]>([]);
+  const [bancoId, setBancoId] = useState<number | null>(null);
   const [fixa, setFixa] = useState(false);
   const [observacao, setObservacao] = useState("");
   const [campoData, setCampoData] = useState<CampoData | null>(null);
@@ -106,6 +110,12 @@ export default function CadReceita() {
 
   // Altura máxima da lista: o que sobra da tela, limitado a 320
   const alturaMaxLista = Math.min(320, alturaTela - posTipo.top - 24);
+
+  useFocusEffect(useCallback(() => {
+    let ativo = true;
+    listarBancos().then((lista) => { if (ativo) setBancos(lista); }).catch(console.error);
+    return () => { ativo = false; };
+  }, []));
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -138,6 +148,7 @@ export default function CadReceita() {
         setDataEntrada(isoParaDate(r.data));
         setDataPrevisao(isoParaDate(r.vencimento));
         setRecebido(r.recebido === 1);
+        setBancoId(r.banco_id ?? null);
         setFixa(r.fixa === 1);
         setObservacao(r.observacao ?? "");
       })
@@ -221,6 +232,7 @@ export default function CadReceita() {
       recebido,
       fixa,
       parcelas: parcelasNumero,
+      bancoId,
     };
 
     try {
@@ -359,11 +371,17 @@ export default function CadReceita() {
           </View>
           <Switch
             value={recebido}
-            onValueChange={setRecebido}
+            onValueChange={(ativo) => { setRecebido(ativo); if (!ativo) setBancoId(null); }}
             trackColor={{ false: "#D0D0D0", true: "#80CBC4" }}
             thumbColor={recebido ? "#00897B" : "#F4F4F4"}
           />
         </View>
+        <Text style={styles.label}>Banco do recebimento</Text>
+        <SeletorBanco bancos={bancos} valor={bancoId} onChange={setBancoId} incluirNenhum disabled={!recebido} placeholder="Nenhum" />
+        {recebido && bancos.length === 0 && <TouchableOpacity style={styles.cadastrarBanco} onPress={() => router.push("/cadastros/cadBanco" as never)}>
+          <Text style={styles.cadastrarBancoTexto}>Cadastre um banco para selecionar</Text>
+          <Ionicons name="chevron-forward" size={18} color="#00897B" />
+        </TouchableOpacity>}
 
         <Text style={styles.label}>Observação (opcional)</Text>
         <TextInput
@@ -507,6 +525,8 @@ const styles = StyleSheet.create({
   },
   comboTexto: { fontSize: 16, color: "#1A1A1A" },
   comboPlaceholder: { fontSize: 16, color: "#999999" },
+  cadastrarBanco: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
+  cadastrarBancoTexto: { color: "#00897B", fontSize: 14, fontWeight: "600" },
 
   // Switch "Recebido"
   linhaSwitch: {

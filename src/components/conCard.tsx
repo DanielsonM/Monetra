@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 import { totalDespesasPagas } from "../database/dbGestor/dbDespesas";
 import { totalReceitasRecebidas } from "../database/dbGestor/dbReceitas";
-import { totalAplicacoes } from "../database/dbGestor/dbAplicacoes";
+import { buscarUltimoSaqueAplicacao, totalAplicacoes, type SaqueAplicacao } from "../database/dbGestor/dbAplicacoes";
 import InfoButton from "./infoButton";
 
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -16,16 +16,18 @@ export default function ConCard({ onPageChange }: { onPageChange?: (pagina: numb
   const [somaReceitas, setSomaReceitas] = useState(0);
   const [somaDespesas, setSomaDespesas] = useState(0);
   const [somaAplicacoes, setSomaAplicacoes] = useState(0);
+  const [ultimoSaque, setUltimoSaque] = useState<SaqueAplicacao | null>(null);
   const [pagina, setPagina] = useState(0);
 
   useFocusEffect(useCallback(() => {
     let ativo = true;
-    Promise.all([totalReceitasRecebidas(), totalDespesasPagas(), totalAplicacoes()])
-      .then(([receitas, despesas, aplicacoes]) => {
+    Promise.all([totalReceitasRecebidas(), totalDespesasPagas(), totalAplicacoes(), buscarUltimoSaqueAplicacao()])
+      .then(([receitas, despesas, aplicacoes, saque]) => {
         if (!ativo) return;
         setSomaReceitas(receitas);
         setSomaDespesas(despesas);
         setSomaAplicacoes(aplicacoes);
+        setUltimoSaque(saque);
       })
       .catch((erro) => console.error(erro));
     return () => { ativo = false; };
@@ -66,7 +68,8 @@ export default function ConCard({ onPageChange }: { onPageChange?: (pagina: numb
               <Ionicons name="chevron-forward-circle-outline" size={24} color="#E3F2FD" />
             </View>
             <Text style={styles.valor}>{moeda(somaAplicacoes)}</Text>
-            <Text style={styles.toque}>Toque para consultar ou adicionar</Text>
+            {ultimoSaque ? <Text style={styles.movimento}>Último saque em {ultimoSaque.banco_nome}: {moeda(ultimoSaque.valor)} · {ultimoSaque.data.slice(8, 10)}/{ultimoSaque.data.slice(5, 7)}</Text> : null}
+            <Text style={styles.toque}>{ultimoSaque ? "Toque para consultar aplicações" : "Toque para consultar ou adicionar"}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -91,6 +94,7 @@ const styles = StyleSheet.create({
   rotulo: { fontSize: 16, color: "#E8F5E9" },
   valor: { fontSize: 32, fontWeight: "bold", color: "#FFFFFF" },
   toque: { fontSize: 12, color: "#E3F2FD", marginTop: 10 },
+  movimento: { color: "#E3F2FD", fontSize: 12, fontWeight: "600", marginTop: 5 },
   indicadores: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 2, marginTop: 8 },
   ponto: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#BDBDBD", marginHorizontal: 5 },
   pontoAtivo: { width: 18, backgroundColor: "#00897B" },

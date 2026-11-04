@@ -11,6 +11,9 @@ export type Receita = {
   recebido: number; // 0 = a receber, 1 = já recebida (entra no saldo disponível)
   fixa: number;
   parcelas: number;
+  banco_id: number | null;
+  banco_nome?: string | null;
+  banco_cor?: string | null;
   criado_em: string;
 };
 
@@ -24,12 +27,13 @@ export type DadosReceita = {
   recebido?: boolean;
   fixa?: boolean;
   parcelas?: number;
+  bancoId?: number | null;
 };
 
 export async function inserirReceita(d: DadosReceita) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, fixa, parcelas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, fixa, parcelas, banco_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
       d.nome,
       d.valor,
@@ -40,6 +44,7 @@ export async function inserirReceita(d: DadosReceita) {
       d.recebido ? 1 : 0,
       d.fixa ? 1 : 0,
       d.parcelas ?? 1,
+      d.recebido ? d.bancoId ?? null : null,
     ]
   );
   return r.lastInsertRowId;
@@ -49,14 +54,14 @@ export async function inserirReceita(d: DadosReceita) {
 export async function listarReceitas(): Promise<Receita[]> {
   const db = await getDb();
   return db.getAllAsync<Receita>(
-    "SELECT * FROM receitas ORDER BY data DESC, id DESC"
+    "SELECT r.*, b.nome AS banco_nome, b.cor AS banco_cor FROM receitas r LEFT JOIN bancos b ON b.id = r.banco_id ORDER BY r.data DESC, r.id DESC"
   );
 }
 
 // Busca uma receita pelo id (usado para abrir o cadastro em modo edição)
 export async function buscarReceita(id: number): Promise<Receita | null> {
   const db = await getDb();
-  return db.getFirstAsync<Receita>("SELECT * FROM receitas WHERE id = ?", [
+  return db.getFirstAsync<Receita>("SELECT r.*, b.nome AS banco_nome, b.cor AS banco_cor FROM receitas r LEFT JOIN bancos b ON b.id = r.banco_id WHERE r.id = ?", [
     id,
   ]);
 }
@@ -64,7 +69,7 @@ export async function buscarReceita(id: number): Promise<Receita | null> {
 export async function atualizarReceita(id: number, d: DadosReceita) {
   const db = await getDb();
   await db.runAsync(
-    "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ?, fixa = ?, parcelas = ? WHERE id = ?",
+    "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ?, fixa = ?, parcelas = ?, banco_id = ? WHERE id = ?",
     [
       d.nome,
       d.valor,
@@ -75,15 +80,16 @@ export async function atualizarReceita(id: number, d: DadosReceita) {
       d.recebido ? 1 : 0,
       d.fixa ? 1 : 0,
       d.parcelas ?? 1,
+      d.recebido ? d.bancoId ?? null : null,
       id,
     ]
   );
 }
 
 // Liquida a receita: marca como recebida (passa a somar no saldo disponível)
-export async function receberReceita(id: number) {
+export async function receberReceita(id: number, bancoId: number) {
   const db = await getDb();
-  await db.runAsync("UPDATE receitas SET recebido = 1 WHERE id = ?", [id]);
+  await db.runAsync("UPDATE receitas SET recebido = 1, banco_id = ? WHERE id = ?", [bancoId, id]);
 }
 
 export async function unificarReceitas(origemId: number, destinoId: number) {

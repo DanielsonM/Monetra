@@ -121,16 +121,16 @@ export function ultimosMeses(qtd: number): string[] {
   return lista;
 }
 
-// Entradas (saldos cadastrados) e gastos (pagamentos) de cada mês
+// Receitas recebidas e pagamentos de cada mês
 export async function resumoPorMes(qtd = 12): Promise<ResumoMes[]> {
   const db = await getDb();
   const meses = ultimosMeses(qtd);
   const inicio = meses[0];
 
   const entradas = await db.getAllAsync<{ mes: string; total: number }>(
-    `SELECT substr(criado_em, 1, 7) AS mes, SUM(valor) AS total
-     FROM saldos
-     WHERE substr(criado_em, 1, 7) >= ?
+    `SELECT substr(data, 1, 7) AS mes, SUM(valor) AS total
+     FROM receitas
+     WHERE recebido = 1 AND substr(data, 1, 7) >= ?
      GROUP BY mes`,
     [inicio]
   );

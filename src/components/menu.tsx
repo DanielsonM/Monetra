@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Dimensions,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -36,18 +38,23 @@ function IconeMenu({ nome, cor, pequeno }: IconeMenuProps) {
 // Deve ser colocado dentro de um container com position: "relative"
 // (o header da tela), pois o botão e o menu são posicionados de forma absoluta.
 export default function Menu() {
+  const insets = useSafeAreaInsets();
   const [menuAberto, setMenuAberto] = useState(false);
   const [cadastroAberto, setCadastroAberto] = useState(false);
   const [consultaAberto, setConsultaAberto] = useState(false);
   const [recursosAberto, setRecursosAberto] = useState(false);
   const [historicosAberto, setHistoricosAberto] = useState(false);
 
-  const navegarPara = (rota: string) => {
+  const fecharMenu = () => {
     setMenuAberto(false);
     setCadastroAberto(false);
     setConsultaAberto(false);
     setRecursosAberto(false);
     setHistoricosAberto(false);
+  };
+
+  const navegarPara = (rota: string) => {
+    fecharMenu();
     router.push(rota as never);
   };
 
@@ -56,26 +63,32 @@ export default function Menu() {
       {/* Botão de menu à esquerda */}
       <TouchableOpacity
         style={styles.botaoMenu}
-        onPress={() => setMenuAberto(!menuAberto)}
+        onPress={() => menuAberto ? fecharMenu() : setMenuAberto(true)}
         activeOpacity={0.7}
       >
         <Text style={styles.iconeMenu}>☰</Text>
       </TouchableOpacity>
 
-      {/* Menu suspenso */}
-      {menuAberto && (
-        <>
+      <Modal visible={menuAberto} transparent animationType="fade" statusBarTranslucent onRequestClose={fecharMenu}>
+        <View style={styles.modalContainer}>
           {/* Fundo clicável para fechar o menu */}
-          <TouchableWithoutFeedback onPress={() => setMenuAberto(false)}>
+          <TouchableWithoutFeedback onPress={fecharMenu}>
             <View style={styles.fundoMenu} />
           </TouchableWithoutFeedback>
 
-          {/* Opções do menu */}
-          <ScrollView
-            style={styles.menu}
-            contentContainerStyle={styles.menuConteudo}
-            showsVerticalScrollIndicator={false}
-          >
+          <View style={[styles.menu, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 8 }]}>
+            <View style={styles.cabecalhoMenu}>
+              <Text style={styles.tituloMenu}>Mondi</Text>
+              <TouchableOpacity onPress={fecharMenu} hitSlop={10} accessibilityRole="button" accessibilityLabel="Fechar menu">
+                <Ionicons name="close" size={26} color="#555555" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={styles.opcoesMenu}
+              contentContainerStyle={styles.menuConteudo}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+            >
             {/* Cadastro com submenu */}
             <TouchableOpacity
               style={styles.menuBotao}
@@ -103,9 +116,18 @@ export default function Menu() {
                   <Text style={styles.submenuItem}>Despesas</Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/gastoRapido")}>
+                  <IconeMenu nome="flash-outline" cor="#F57C00" pequeno />
+                  <Text style={styles.submenuItem}>Gasto rápido</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/cadAplicacao")}>
                   <IconeMenu nome="trending-up-outline" cor="#1565C0" pequeno />
                   <Text style={styles.submenuItem}>Aplicações</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/cadBanco")}>
+                  <IconeMenu nome="business-outline" cor="#00897B" pequeno />
+                  <Text style={styles.submenuItem}>Bancos</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -141,6 +163,10 @@ export default function Menu() {
                   <IconeMenu nome="trending-up-outline" cor="#1565C0" pequeno />
                   <Text style={styles.submenuItem}>Aplicações</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/consultas/bancos")}>
+                  <IconeMenu nome="business-outline" cor="#00897B" pequeno />
+                  <Text style={styles.submenuItem}>Bancos</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -159,10 +185,6 @@ export default function Menu() {
 
             {recursosAberto && (
               <View style={styles.submenu}>
-                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/gastoRapido")}>
-                  <IconeMenu nome="flash-outline" cor="#F57C00" pequeno />
-                  <Text style={styles.submenuItem}>Gasto rápido</Text>
-                </TouchableOpacity>
                 <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/consultas/buscarLancamentos")}>
                   <IconeMenu nome="search-outline" cor="#1976D2" pequeno />
                   <Text style={styles.submenuItem}>Buscar lançamentos</Text>
@@ -216,8 +238,9 @@ export default function Menu() {
               </View>
             )}
           </ScrollView>
-        </>
-      )}
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -241,37 +264,40 @@ const styles = StyleSheet.create({
     color: "#1A1A1A",
   },
 
-  // Fundo para fechar o menu ao tocar fora
+  // Fundo modal e gaveta lateral fixa
+  modalContainer: { flex: 1 },
   fundoMenu: {
-    position: "absolute",
-    top: -100,
-    bottom: -1000,
-    left: -20,
-    right: -20,
-    zIndex: 1,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
 
-  // Menu suspenso alinhado à esquerda
+  // Menu lateral com cabeçalho fixo e conteúdo rolável
   menu: {
     position: "absolute",
-    top: 45,
+    top: 0,
+    bottom: 0,
     left: 0,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingVertical: 8,
-    width: 230,
-    maxHeight: Dimensions.get("window").height * 0.8,
-    zIndex: 11,
-    elevation: 13,
+    paddingHorizontal: 14,
+    width: Math.min(300, Dimensions.get("window").width * 0.8),
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: "#D8D8D8",
+    zIndex: 2,
+    elevation: 16,
     shadowColor: "#000000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
+    shadowOffset: { width: 3, height: 0 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
   },
+  cabecalhoMenu: { height: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 6, marginBottom: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E5E5E5" },
+  tituloMenu: { color: "#10B981", fontSize: 22, fontWeight: "bold" },
+  opcoesMenu: { flex: 1 },
   menuConteudo: {
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: 18,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
   },
 
   // Quadradinho colorido atrás do ícone

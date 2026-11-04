@@ -21,6 +21,8 @@ import {
   type Receita,
 } from "../../database/dbGestor/dbReceitas";
 import { dataISOparaBR } from "../../utils/converterData";
+import { listarBancos, type Banco } from "../../database/dbGestor/dbBancos";
+import { ModalSeletorBanco } from "../../components/seletorBanco";
 
 // Situação de cada receita:
 // - recebida: já foi recebida (entra no saldo disponível)
@@ -83,6 +85,8 @@ export default function ConReceita() {
   const [buscarTipo, setBuscarTipo] = useState(false);
   const [tipoSelecionado, setTipoSelecionado] = useState("Todos");
   const [tiposAbertos, setTiposAbertos] = useState(false);
+  const [bancos, setBancos] = useState<Banco[]>([]);
+  const [receitaParaReceber, setReceitaParaReceber] = useState<Receita | null>(null);
 
   const hoje = hojeISO();
 
@@ -163,7 +167,9 @@ export default function ConReceita() {
 
   const carregar = useCallback(async () => {
     try {
-      setReceitas(await listarReceitas());
+      const [listaReceitas, listaBancos] = await Promise.all([listarReceitas(), listarBancos()]);
+      setReceitas(listaReceitas);
+      setBancos(listaBancos);
     } catch (erro) {
       console.error(erro);
       Alert.alert("Erro", "Não foi possível carregar as receitas.");
@@ -203,25 +209,27 @@ export default function ConReceita() {
   };
 
   const confirmarRecebimento = (receita: Receita) => {
-    Alert.alert(
-      "Confirmar recebimento",
-      `Marcar "${receita.nome}" (${formatarReal(receita.valor)}) como recebida?`,
-      [
+    if (bancos.length === 0) {
+      Alert.alert("Cadastre um banco", "Para registrar o recebimento, primeiro cadastre o banco onde o valor entrou.", [
         { text: "Cancelar", style: "cancel" },
-        {
-          text: "Marcar como recebida",
-          onPress: async () => {
-            try {
-              await receberReceita(receita.id);
-              await carregar();
-            } catch (erro) {
-              console.error(erro);
-              Alert.alert("Erro", "Não foi possível registrar o recebimento.");
-            }
-          },
-        },
-      ]
-    );
+        { text: "Cadastrar banco", onPress: () => router.push("/cadastros/cadBanco" as never) },
+      ]);
+      return;
+    }
+    setReceitaParaReceber(receita);
+  };
+
+  const selecionarBancoDoRecebimento = async (bancoId: number | null) => {
+    if (bancoId === null || !receitaParaReceber) return;
+    const receita = receitaParaReceber;
+    setReceitaParaReceber(null);
+    try {
+      await receberReceita(receita.id, bancoId);
+      await carregar();
+    } catch (erro) {
+      console.error(erro);
+      Alert.alert("Erro", "Não foi possível registrar o recebimento.");
+    }
   };
 
   const renderItem = ({ item }: { item: Receita }) => {
@@ -240,6 +248,10 @@ export default function ConReceita() {
             Entrada: {dataISOparaBR(item.data)} · Venc.:{" "}
             {dataISOparaBR(item.vencimento)}
           </Text>
+          {item.banco_nome && <View style={styles.rotuloBanco}>
+            <View style={[styles.corBanco, { backgroundColor: item.banco_cor || "#1565C0" }]} />
+            <Text style={styles.nomeBanco}>{item.banco_nome}</Text>
+          </View>}
           {item.observacao ? (
             <Text style={styles.observacao}>{item.observacao}</Text>
           ) : null}
@@ -388,6 +400,13 @@ export default function ConReceita() {
           )
         }
       />
+      <ModalSeletorBanco
+        bancos={bancos}
+        visivel={receitaParaReceber !== null}
+        valor={null}
+        onFechar={() => setReceitaParaReceber(null)}
+        onSelecionar={selecionarBancoDoRecebimento}
+      />
     </SafeAreaView>
   );
 }
@@ -509,6 +528,9 @@ const styles = StyleSheet.create({
   statusVencida: { color: "#D32F2F" },
   cardDireita: { alignItems: "flex-end", gap: 10 },
   valor: { fontSize: 17, fontWeight: "bold", color: "#2E7D32" },
+  rotuloBanco: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 6, marginTop: 6, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 16, backgroundColor: "#F1F3F5" },
+  corBanco: { width: 10, height: 10, borderRadius: 5 },
+  nomeBanco: { color: "#555555", fontSize: 12, fontWeight: "600" },
   botaoReceber: {
     flexDirection: "row",
     alignItems: "center",

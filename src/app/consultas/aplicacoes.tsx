@@ -48,10 +48,11 @@ export default function Aplicacoes() {
       <View style={styles.card}>
         <View style={styles.cardTopo}>
           <TouchableOpacity style={styles.cardPrincipal} activeOpacity={0.8} onPress={() => router.push({ pathname: "/cadastros/cadAplicacao", params: { id: String(item.id) } } as never)}>
-            <View style={styles.icone}><Ionicons name="business-outline" size={23} color="#FFFFFF" /></View>
+            <View style={[styles.icone, { backgroundColor: item.banco_cor || "#1565C0" }]}><Ionicons name="business-outline" size={23} color="#FFFFFF" /></View>
             <View style={styles.cardInfo}>
               <Text style={styles.banco} numberOfLines={1}>{item.banco}</Text>
               <Text style={styles.detalhe}>Cadastrada em {dataBR(item.criado_em)}</Text>
+              {item.ultimo_saque_valor != null && item.ultimo_saque_data && <Text style={styles.detalheSaque}>Último saque: {moeda(item.ultimo_saque_valor)} · {dataBR(item.ultimo_saque_data)}</Text>}
             </View>
           </TouchableOpacity>
           <View style={styles.cardDireita}>
@@ -129,8 +130,9 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1, minWidth: 0 },
   banco: { fontSize: 17, fontWeight: "bold", color: "#1A1A1A" },
   detalhe: { fontSize: 12, color: "#666666", marginTop: 4 },
+  detalheSaque: { fontSize: 12, color: "#1565C0", fontWeight: "600", marginTop: 4 },
   cardDireita: { alignItems: "flex-end", gap: 10 },
-  botaoCardSaque: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 4 },
+  botaoCardSaque: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-end", paddingVertical: 4 },
   textoCardSaque: { color: "#1565C0", fontSize: 13, fontWeight: "600" },
   valor: { fontSize: 16, fontWeight: "bold", color: "#1565C0" },
   vazio: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 60 },

@@ -56,6 +56,15 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       data_pagamento TEXT NOT NULL DEFAULT (date('now', 'localtime'))
     );
 
+    CREATE TABLE IF NOT EXISTS bancos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      cor TEXT NOT NULL,
+      criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_bancos_nome ON bancos(nome COLLATE NOCASE);
+
     CREATE TABLE IF NOT EXISTS receitas (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL,
@@ -67,6 +76,7 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       recebido INTEGER NOT NULL DEFAULT 0,
       fixa INTEGER NOT NULL DEFAULT 0,
       parcelas INTEGER NOT NULL DEFAULT 1,
+      banco_id INTEGER,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -74,6 +84,19 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       banco TEXT NOT NULL,
       valor REAL NOT NULL,
+      banco_id INTEGER,
+      criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS saques_aplicacoes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      aplicacao_id INTEGER,
+      banco_id INTEGER,
+      banco_nome TEXT NOT NULL,
+      banco_cor TEXT NOT NULL,
+      valor REAL NOT NULL,
+      data TEXT NOT NULL,
+      receita_id INTEGER,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -144,6 +167,31 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
   if (!colunasReceitas.some((c) => c.name === "parcelas")) {
     await db.execAsync("ALTER TABLE receitas ADD COLUMN parcelas INTEGER NOT NULL DEFAULT 1;");
   }
+
+  if (!colunasReceitas.some((c) => c.name === "banco_id")) {
+    await db.execAsync("ALTER TABLE receitas ADD COLUMN banco_id INTEGER;");
+  }
+
+  const colunasAplicacoes = await db.getAllAsync<{ name: string }>("PRAGMA table_info(aplicacoes)");
+  if (!colunasAplicacoes.some((c) => c.name === "banco_id")) {
+    await db.execAsync("ALTER TABLE aplicacoes ADD COLUMN banco_id INTEGER;");
+  }
+
+  // Converte os nomes de banco já digitados nas aplicações em cadastros vinculados.
+  const bancosAntigos = await db.getAllAsync<{ banco: string }>(
+    "SELECT DISTINCT banco FROM aplicacoes WHERE TRIM(banco) <> '' AND banco_id IS NULL"
+  );
+  for (const antigo of bancosAntigos) {
+    await db.runAsync(
+      "INSERT OR IGNORE INTO bancos (nome, cor) VALUES (?, ?)",
+      [antigo.banco.trim(), "#1565C0"]
+    );
+  }
+  await db.execAsync(`
+    UPDATE aplicacoes
+    SET banco_id = (SELECT id FROM bancos WHERE bancos.nome = aplicacoes.banco COLLATE NOCASE)
+    WHERE banco_id IS NULL;
+  `);
 
 }
 

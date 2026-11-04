@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import InfoButton from "../../components/infoButton";
 import { atualizarAplicacao, buscarAplicacao, inserirAplicacao } from "../../database/dbGestor/dbAplicacoes";
+import { listarBancos, type Banco } from "../../database/dbGestor/dbBancos";
+import SeletorBanco from "../../components/seletorBanco";
 
 const formatarValor = (texto: string) => {
   const digitos = texto.replace(/\D/g, "").slice(0, 12);
@@ -20,7 +22,8 @@ export default function CadAplicacao() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const idEdicao = id ? Number(id) : null;
   const editando = idEdicao !== null;
-  const [banco, setBanco] = useState("");
+  const [bancoId, setBancoId] = useState<number | null>(null);
+  const [bancos, setBancos] = useState<Banco[]>([]);
   const [valor, setValor] = useState("");
   const [carregando, setCarregando] = useState(editando);
   const [salvando, setSalvando] = useState(false);
@@ -36,7 +39,7 @@ export default function CadAplicacao() {
           router.back();
           return;
         }
-        setBanco(aplicacao.banco);
+        setBancoId(aplicacao.banco_id);
         setValor(formatarValor(numeroParaTexto(aplicacao.valor)));
       })
       .catch((erro) => {
@@ -49,15 +52,21 @@ export default function CadAplicacao() {
     return () => { ativo = false; };
   }, [idEdicao, router]);
 
+  useFocusEffect(useCallback(() => {
+    let ativo = true;
+    listarBancos().then((lista) => { if (ativo) setBancos(lista); }).catch(console.error);
+    return () => { ativo = false; };
+  }, []));
+
   const salvar = async () => {
     const valorNumero = valorParaNumero(valor);
-    if (!banco.trim() || valorNumero <= 0) {
-      Alert.alert("Atenção", "Informe o nome do banco e um valor maior que zero.");
+    if (bancoId === null || valorNumero <= 0) {
+      Alert.alert("Atenção", "Selecione um banco cadastrado e informe um valor maior que zero.");
       return;
     }
     try {
       setSalvando(true);
-      const dados = { banco: banco.trim(), valor: valorNumero };
+      const dados = { bancoId, valor: valorNumero };
       if (idEdicao !== null) {
         await atualizarAplicacao(idEdicao, dados);
         Alert.alert("Pronto", "Aplicação atualizada.");
@@ -84,15 +93,12 @@ export default function CadAplicacao() {
         <InfoButton compacto titulo="Aplicação financeira" texto="Cadastre o banco e o valor que você mantém aplicado. O total das aplicações aparece no card da tela inicial e não altera o saldo disponível." />
       </View>
 
-      <Text style={styles.label}>Nome do banco</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ex.: Banco do Brasil"
-        value={banco}
-        onChangeText={setBanco}
-        autoCapitalize="words"
-        maxLength={60}
-      />
+      <Text style={styles.label}>Banco</Text>
+      <SeletorBanco bancos={bancos} valor={bancoId} onChange={setBancoId} placeholder="Selecione um banco" />
+      {bancos.length === 0 && <TouchableOpacity style={styles.cadastrarBanco} onPress={() => router.push("/cadastros/cadBanco" as never)}>
+        <Text style={styles.cadastrarBancoTexto}>Cadastre um banco para continuar</Text>
+        <Ionicons name="chevron-forward" size={18} color="#00897B" />
+      </TouchableOpacity>}
 
       <Text style={styles.label}>Valor aplicado</Text>
       <View style={styles.campoValor}>
@@ -122,6 +128,8 @@ const styles = StyleSheet.create({
   campoValor: { backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, flexDirection: "row", alignItems: "center" },
   prefixo: { fontSize: 18, color: "#666666", marginRight: 8 },
   inputValor: { flex: 1, paddingVertical: 12, fontSize: 18, color: "#1A1A1A" },
+  cadastrarBanco: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 },
+  cadastrarBancoTexto: { color: "#00897B", fontSize: 14, fontWeight: "600" },
   botao: { backgroundColor: "#00897B", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 30 },
   botaoDesativado: { opacity: 0.6 },
   botaoTexto: { color: "#FFFFFF", fontSize: 17, fontWeight: "bold" },

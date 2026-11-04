@@ -17,6 +17,7 @@ import {
     ultimosMeses,
 } from "../../database/dbGestor/dbHistorico";
 import InfoButton from "../../components/infoButton";
+import { listarSaquesAplicacoes, type SaqueAplicacao } from "../../database/dbGestor/dbAplicacoes";
 
 const MESES = [
   "Janeiro",
@@ -65,6 +66,7 @@ const QTD_MESES_GRAFICO = 6;
 
 const formatarMoeda = (valor: number) =>
   valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const dataSaqueBR = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}/${data.slice(0, 4)}`;
 
 // "2026-10" -> "Outubro 2026"
 const rotuloMes = (chave: string) => {
@@ -90,6 +92,7 @@ export default function Historico() {
   const [resumo, setResumo] = useState<ResumoMes[]>([]);
   const [mesSel, setMesSel] = useState(ultimosMeses(1)[0]);
   const [porTipo, setPorTipo] = useState<GastoTipo[]>([]);
+  const [saques, setSaques] = useState<SaqueAplicacao[]>([]);
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -106,11 +109,11 @@ export default function Historico() {
 
       (async () => {
         try {
-          const r = await resumoPorMes(12);
-          const t = await gastosPorTipo(mesSel);
+          const [r, t, s] = await Promise.all([resumoPorMes(12), gastosPorTipo(mesSel), listarSaquesAplicacoes(undefined, mesSel)]);
           if (ativo) {
             setResumo(r);
             setPorTipo(t);
+            setSaques(s);
           }
         } catch (erro) {
           console.error(erro);
@@ -222,6 +225,21 @@ export default function Historico() {
               {formatarMoeda(atual.gastos)}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitulo}>Saques de aplicações · {rotuloCurto(mesSel)}</Text>
+          <Text style={styles.totalSaques}>Total sacado: {formatarMoeda(saques.reduce((total, saque) => total + saque.valor, 0))}</Text>
+          {saques.length === 0 ? <Text style={styles.vazio}>Nenhum saque registrado neste mês.</Text> : saques.map((saque) => (
+            <View key={saque.id} style={styles.saqueLinha}>
+              <View style={[styles.saqueCor, { backgroundColor: saque.banco_cor }]} />
+              <View style={styles.saqueInfo}>
+                <Text style={styles.saqueBanco}>{saque.banco_nome}</Text>
+                <Text style={styles.saqueData}>{dataSaqueBR(saque.data)}</Text>
+              </View>
+              <Text style={styles.saqueValor}>{formatarMoeda(saque.valor)}</Text>
+            </View>
+          ))}
         </View>
 
         {/* Gráfico dos últimos meses */}
@@ -470,6 +488,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   cardTitulo: { fontSize: 17, fontWeight: "bold", color: "#1A1A1A" },
+  totalSaques: { color: "#1565C0", fontSize: 14, fontWeight: "bold", marginTop: 8, marginBottom: 6 },
+  saqueLinha: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#E5E5E5" },
+  saqueCor: { width: 12, height: 12, borderRadius: 6 },
+  saqueInfo: { flex: 1 },
+  saqueBanco: { color: "#222222", fontSize: 14, fontWeight: "bold" },
+  saqueData: { color: "#777777", fontSize: 12, marginTop: 2 },
+  saqueValor: { color: "#1565C0", fontSize: 14, fontWeight: "bold" },
 
   // Legenda do gráfico
   legenda: { flexDirection: "row", gap: 16, marginTop: 10 },
