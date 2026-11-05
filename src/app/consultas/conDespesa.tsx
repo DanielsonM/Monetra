@@ -29,6 +29,7 @@ import { dataISOparaBR } from "../../utils/converterData";
 import InfoButton from "../../components/infoButton";
 import CardParcelamento from "../../components/cardParcelamento";
 import NavegadorMes, { chaveMesAtual } from "../../components/navegadorMes";
+import CardResumoRetratil from "../../components/cardResumoRetratil";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
@@ -276,6 +277,7 @@ export default function ConDespesa() {
       </View>
 
       {/* Resumo mensal com navegação entre meses */}
+      <CardResumoRetratil>
       <View style={styles.resumo}>
         <View style={styles.resumoTopo}>
           <Text style={styles.resumoLabel}>
@@ -296,6 +298,7 @@ export default function ConDespesa() {
           <Text style={styles.botaoUnificarTexto}>Unificar despesas não pagas</Text>
         </TouchableOpacity>
       </View>
+      </CardResumoRetratil>
 
       <View style={styles.linhaBusca}>
         <TextInput style={[styles.busca, !buscarNome && styles.buscaDesativada]} value={busca} onChangeText={setBusca} placeholder={placeholderBusca} editable={buscarNome} returnKeyType="search" accessibilityLabel={placeholderBusca} />

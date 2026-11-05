@@ -249,7 +249,6 @@ export default function Configuracao() {
           />
           <Text style={styles.resumoTexto}>{resumo}</Text>
         </View>
-
         <TouchableOpacity
           style={[styles.botao, salvando && styles.botaoDesabilitado]}
           onPress={salvar}

@@ -25,6 +25,7 @@ import { listarBancos, type Banco } from "../../database/dbGestor/dbBancos";
 import { ModalSeletorBanco } from "../../components/seletorBanco";
 import CardParcelamento from "../../components/cardParcelamento";
 import NavegadorMes, { chaveMesAtual } from "../../components/navegadorMes";
+import CardResumoRetratil from "../../components/cardResumoRetratil";
 
 // Situação de cada receita:
 // - recebida: já foi recebida (entra no saldo disponível)
@@ -366,6 +367,7 @@ export default function ConReceita() {
       </View>
 
       {/* Resumo mensal com navegação entre meses */}
+      <CardResumoRetratil>
       <View style={styles.resumo}>
         <View style={styles.resumoTopo}>
           <Text style={styles.resumoLabel}>
@@ -386,6 +388,7 @@ export default function ConReceita() {
           <Text style={styles.botaoUnificarTexto}>Unificar receitas a receber</Text>
         </TouchableOpacity>
       </View>
+      </CardResumoRetratil>
 
       {/* Filtros: todas, recebidas, a receber e vencidas */}
       <ScrollView

@@ -98,6 +98,7 @@ export default function CadReceita() {
   const [valor, setValor] = useState("0,00");
   const [parcelas, setParcelas] = useState("1");
   const [modoValor, setModoValor] = useState<ModoValorParcelas>("total");
+  const [utilizarParcelas, setUtilizarParcelas] = useState(false);
   const [tipo, setTipo] = useState("");
   const [dataEntrada, setDataEntrada] = useState<Date | null>(
     editando ? null : new Date()
@@ -242,7 +243,7 @@ export default function CadReceita() {
       vencimento: paraISO(dataPrevisao),
       observacao,
       recebido,
-      fixa,
+      fixa: !utilizarParcelas && fixa,
       parcelas: parcelasNumero,
       bancoId,
     };
@@ -254,7 +255,7 @@ export default function CadReceita() {
         await atualizarReceita(idEdicao, dados);
         Alert.alert("Pronto", "Receita atualizada!");
       } else {
-        if (parcelasNumero > 1) await inserirReceitasParceladas(dados, parcelasNumero, modoValor);
+        if (utilizarParcelas && parcelasNumero > 1) await inserirReceitasParceladas(dados, parcelasNumero, modoValor);
         else await inserirReceita(dados);
         Alert.alert("Pronto", "Receita cadastrada!");
       }
@@ -294,6 +295,24 @@ export default function CadReceita() {
           onChangeText={setNome}
         />
 
+        {!editando && <View style={styles.linhaSwitch}>
+          <View style={styles.textosSwitch}>
+            <Text style={styles.switchTitulo}>Utilizar parcelas</Text>
+            <Text style={styles.switchSubtitulo}>{utilizarParcelas ? "Receita dividida em parcelas" : "Cadastrar como receita única"}</Text>
+          </View>
+          <Switch
+            value={utilizarParcelas}
+            onValueChange={(ativo) => {
+              setUtilizarParcelas(ativo);
+              if (ativo) setFixa(false);
+              else { setParcelas("1"); setModoValor("total"); }
+            }}
+            trackColor={{ false: "#D0D0D0", true: "#80CBC4" }}
+            thumbColor={utilizarParcelas ? "#00897B" : "#F4F4F4"}
+          />
+        </View>}
+
+        {(utilizarParcelas || (editando && grupoParcelado)) && <>
         <Text style={styles.label}>Número de parcelas</Text>
         <View style={styles.parcelasControle}>
           <TouchableOpacity
@@ -346,6 +365,7 @@ export default function CadReceita() {
             ))}
           </View>
         </>}
+        </>}
 
         <Text style={styles.label}>{editando && grupoParcelado && Number(parcelas) > 1 ? "Valor desta parcela" : !editando && modoValor === "parcela" ? "Valor de cada parcela" : "Valor total"}</Text>
         <TextInput
@@ -355,7 +375,7 @@ export default function CadReceita() {
           value={valor}
           onChangeText={(texto) => setValor(mascaraMoeda(texto))}
         />
-        {!editando && Number(parcelas) > 1 && <Text style={styles.ajudaParcelas}>
+        {!editando && utilizarParcelas && Number(parcelas) > 1 && <Text style={styles.ajudaParcelas}>
           {modoValor === "total"
             ? `O total será dividido em ${parcelas} parcelas de ${formatarMoedaSeguro(valorNumeroAtual(valor) / Number(parcelas))}.`
             : `Total do grupo: ${formatarMoedaSeguro(valorNumeroAtual(valor) * Number(parcelas))}.`}
@@ -400,7 +420,7 @@ export default function CadReceita() {
             <Text style={styles.switchTitulo}>Receita fixa</Text>
             <Text style={styles.switchSubtitulo}>{fixa ? "Receita recorrente" : "Receita única"}</Text>
           </View>
-          <Switch value={fixa} disabled={grupoParcelado} onValueChange={(ativa) => { setFixa(ativa); if (ativa) { setParcelas("1"); setModoValor("total"); } }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={fixa ? "#00897B" : "#F4F4F4"} />
+          <Switch value={fixa} disabled={utilizarParcelas || grupoParcelado} onValueChange={(ativa) => { setFixa(ativa); if (ativa) { setParcelas("1"); setModoValor("total"); } }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={fixa ? "#00897B" : "#F4F4F4"} />
         </View>
         <View style={styles.linhaSwitch}>
           <View style={styles.textosSwitch}>
