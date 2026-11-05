@@ -15,6 +15,8 @@ import {
     gastosPorTipo,
     resumoPorMes,
     ultimosMeses,
+    movimentosParceladosDoMes,
+    type MovimentoParcelado,
 } from "../../database/dbGestor/dbHistorico";
 import InfoButton from "../../components/infoButton";
 import { listarSaquesAplicacoes, type SaqueAplicacao } from "../../database/dbGestor/dbAplicacoes";
@@ -93,6 +95,7 @@ export default function Historico() {
   const [mesSel, setMesSel] = useState(ultimosMeses(1)[0]);
   const [porTipo, setPorTipo] = useState<GastoTipo[]>([]);
   const [saques, setSaques] = useState<SaqueAplicacao[]>([]);
+  const [parcelados, setParcelados] = useState<MovimentoParcelado[]>([]);
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -109,11 +112,12 @@ export default function Historico() {
 
       (async () => {
         try {
-          const [r, t, s] = await Promise.all([resumoPorMes(12), gastosPorTipo(mesSel), listarSaquesAplicacoes(undefined, mesSel)]);
+          const [r, t, s, p] = await Promise.all([resumoPorMes(12), gastosPorTipo(mesSel), listarSaquesAplicacoes(undefined, mesSel), movimentosParceladosDoMes(mesSel)]);
           if (ativo) {
             setResumo(r);
             setPorTipo(t);
             setSaques(s);
+            setParcelados(p);
           }
         } catch (erro) {
           console.error(erro);
@@ -238,6 +242,20 @@ export default function Historico() {
                 <Text style={styles.saqueData}>{dataSaqueBR(saque.data)}</Text>
               </View>
               <Text style={styles.saqueValor}>{formatarMoeda(saque.valor)}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitulo}>Parcelas movimentadas · {rotuloCurto(mesSel)}</Text>
+          {parcelados.length === 0 ? <Text style={styles.vazio}>Nenhuma parcela paga ou recebida neste mês.</Text> : parcelados.map((item) => (
+            <View key={`${item.natureza}-${item.id}`} style={styles.saqueLinha}>
+              <View style={[styles.saqueCor, { backgroundColor: item.natureza === "Receita" ? COR_ENTRADA : COR_GASTO }]} />
+              <View style={styles.saqueInfo}>
+                <Text style={styles.saqueBanco}>{item.nome} · {item.natureza}</Text>
+                <Text style={styles.saqueData}>Parcela {item.parcela} de {item.quantidade} · {dataSaqueBR(item.data)}</Text>
+              </View>
+              <Text style={[styles.saqueValor, { color: item.natureza === "Receita" ? COR_ENTRADA : COR_GASTO }]}>{formatarMoeda(item.valor)}</Text>
             </View>
           ))}
         </View>

@@ -22,7 +22,7 @@ export default function Home() {
   const [cardSelecionado, setCardSelecionado] = useState(0);
   const atualizarCards = () => setVersao((v) => v + 1);
 
-  // Reagenda os avisos de vencimento sempre que a Home volta a ficar em foco
+  // Reagenda os avisos de provisão sempre que a Home volta a ficar em foco
   useFocusEffect(
     useCallback(() => {
       // Só despesas não pagas
@@ -44,7 +44,7 @@ export default function Home() {
         </Text>
 
         <View style={styles.ajuda}>
-          <InfoButton titulo="Como usar o Monetra" texto={"• Cadastre seus saldos e receitas para registrar o dinheiro disponível e o que espera receber.\n\n• Cadastre despesas com valor e vencimento. Marque como fixa se ela se repetir semanalmente, mensalmente ou anualmente.\n\n• Saldo disponível considera valores já recebidos e despesas já pagas. Deslize esse card para consultar o total das aplicações financeiras.\n\n• Toque no card de aplicações para cadastrar, editar ou unificar aplicações.\n\n• Em Provisão, acompanhe o que falta receber ou pagar e veja o saldo projetado. Use os botões para registrar uma baixa.\n\n• Lançamentos Recentes mostra os últimos cadastros sem alterar o status.\n\n• Para juntar lançamentos pendentes, abra Consulta > Receitas ou Despesas e toque em Unificar. A operação aparece em Históricos > Unificações.\n\n• Em Históricos, consulte o histórico financeiro ou as unificações. Configurações reúne os avisos do app."} />
+        <InfoButton titulo="Como usar o Monetra" texto={"• Cadastre seus saldos e receitas para registrar o dinheiro disponível e o que espera receber.\n\n• Cadastre despesas com valor e data de provisão. Marque como fixa se ela se repetir semanalmente, mensalmente ou anualmente.\n\n• Saldo disponível considera valores já recebidos e despesas já pagas. Deslize esse card para consultar o total das aplicações financeiras.\n\n• Toque no card de aplicações para cadastrar, editar ou unificar aplicações.\n\n• Em Provisão, acompanhe o que falta receber ou pagar e veja o saldo projetado. Use os botões para registrar uma baixa.\n\n• Lançamentos Recentes mostra os últimos cadastros sem alterar o status.\n\n• Para juntar lançamentos pendentes, abra Consulta > Receitas ou Despesas e toque em Unificar. A operação aparece em Históricos > Unificações.\n\n• Em Históricos, consulte o histórico financeiro ou as unificações. Configurações reúne os avisos do app."} />
         </View>
 
         {/* Botão ☰ e menu suspenso */}

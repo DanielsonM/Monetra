@@ -6,6 +6,7 @@ import {
   type Despesa,
   listarDespesas,
   pagarDespesa,
+  totalDespesasPagas,
 } from "../database/dbGestor/dbDespesas";
 import {
   listarReceitas,
@@ -36,7 +37,7 @@ type Item = {
   tipo: "receita" | "despesa";
   nome: string;
   valor: number;
-  vencimento: string; // AAAA-MM-DD
+  dataPrevista: string; // AAAA-MM-DD
 };
 
 // Formata valores para Real brasileiro
@@ -63,6 +64,7 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
   const [receitas, setReceitas] = useState<Receita[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [bancos, setBancos] = useState<Banco[]>([]);
+  const [totalPagamentos, setTotalPagamentos] = useState(0);
   const [receitaParaReceber, setReceitaParaReceber] = useState<Item | null>(null);
   const [aba, setAba] = useState<Aba>("todas");
   const [verTodas, setVerTodas] = useState(false);
@@ -70,10 +72,11 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
 
   const carregar = useCallback(async () => {
     try {
-      const [r, d, listaBancos] = await Promise.all([listarReceitas(), listarDespesas(), listarBancos()]);
+      const [r, d, listaBancos, pagamentos] = await Promise.all([listarReceitas(), listarDespesas(), listarBancos(), totalDespesasPagas()]);
       setReceitas(r);
       setDespesas(d);
       setBancos(listaBancos);
+      setTotalPagamentos(pagamentos);
     } catch (erro) {
       console.error(erro);
     }
@@ -90,14 +93,13 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
 
   // Realizado (regime de caixa): receitas recebidas - despesas pagas
   const receitasRecebidas = receitas.filter((r) => r.recebido === 1);
-  const despesasPagas = despesas.filter((d) => d.pago === 1);
-  const caixaAtual = somar(receitasRecebidas) - somar(despesasPagas);
+  const caixaAtual = somar(receitasRecebidas) - totalPagamentos;
 
   // Provisionado (ainda não liquidado)
   const receitasPendentes = receitas.filter((r) => r.recebido === 0);
   const despesasPendentes = despesas.filter((d) => d.pago === 0);
   const aReceber = somar(receitasPendentes);
-  const aPagar = somar(despesasPendentes);
+  const aPagar = despesasPendentes.reduce((soma, d) => soma + Math.max(0, d.valor - (d.valor_pago ?? 0)), 0);
 
   // Saldo projetado = caixa atual + a receber - a pagar
   const saldoProjetado = caixaAtual + aReceber - aPagar;
@@ -106,11 +108,11 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
   const receberVencidas = receitasPendentes.filter(
     (r) => r.vencimento < hoje
   ).length;
-  const pagarVencidas = despesasPendentes.filter(
-    (d) => d.vencimento < hoje
+  const despesasAtrasadas = despesasPendentes.filter(
+    (d) => d.provisao < hoje
   ).length;
 
-  // Lista unificada, do vencimento mais próximo (ou mais atrasado) ao mais distante
+  // Lista unificada, da data prevista mais próxima (ou mais atrasada) à mais distante
   const itens: Item[] = [
     ...receitasPendentes.map<Item>((r) => ({
       chave: `r${r.id}`,
@@ -118,17 +120,17 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
       tipo: "receita",
       nome: r.nome,
       valor: r.valor,
-      vencimento: r.vencimento,
+      dataPrevista: r.vencimento,
     })),
     ...despesasPendentes.map<Item>((d) => ({
       chave: `d${d.id}`,
       id: d.id,
       tipo: "despesa",
       nome: d.nome,
-      valor: d.valor,
-      vencimento: d.vencimento,
+      valor: Math.max(0, d.valor - (d.valor_pago ?? 0)),
+      dataPrevista: d.provisao,
     })),
-  ].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  ].sort((a, b) => a.dataPrevista.localeCompare(b.dataPrevista));
 
   const filtrados = itens.filter((i) =>
     aba === "todas"
@@ -246,8 +248,8 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
         valor={aPagar}
         cor="#D32F2F"
         detalhe={
-          pagarVencidas > 0
-            ? `${pagarVencidas} vencida${pagarVencidas > 1 ? "s" : ""}`
+          despesasAtrasadas > 0
+            ? `${despesasAtrasadas} atrasada${despesasAtrasadas > 1 ? "s" : ""}`
             : undefined
         }
       />
@@ -294,7 +296,7 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
       ) : (
         visiveis.map((item) => {
           const receita = item.tipo === "receita";
-          const vencida = item.vencimento < hoje;
+          const atrasado = item.dataPrevista < hoje;
           const cor = receita ? "#2E7D32" : "#D32F2F";
 
           return (
@@ -306,10 +308,10 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
                   {item.nome}
                 </Text>
                 <Text
-                  style={[styles.itemData, vencida && styles.itemDataVencida]}
+                  style={[styles.itemData, atrasado && styles.itemDataVencida]}
                 >
-                  {vencida ? "Vencida em " : "Vence em "}
-                  {dataISOparaBR(item.vencimento)}
+                  {item.tipo === "despesa" ? atrasado ? "Provisão atrasada · " : "Provisão · " : atrasado ? "Vencida em " : "Vence em "}
+                  {dataISOparaBR(item.dataPrevista)}
                 </Text>
               </View>
 

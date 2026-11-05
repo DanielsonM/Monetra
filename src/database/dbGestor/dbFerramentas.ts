@@ -12,10 +12,41 @@ export type Lancamento = {
 
 export type Meta = { id: number; nome: string; objetivo: number; guardado: number; prazo: string | null };
 
+export type GrupoParcelamentoRelatorio = {
+  id: number;
+  natureza: "Despesa" | "Receita";
+  nome: string;
+  tipo: string;
+  valor_total: number;
+  quantidade: number;
+  modo_valor: "total" | "parcela";
+  criacao: string;
+  concluidas: number;
+  recebidas: number;
+  pago: number;
+  pendente: number;
+};
+
+export async function buscarRelatorioParcelamentos(): Promise<GrupoParcelamentoRelatorio[]> {
+  const db = await getDb();
+  return db.getAllAsync<GrupoParcelamentoRelatorio>(`
+    SELECT g.id, g.natureza, g.nome, g.tipo, g.valor_total, g.quantidade, g.modo_valor,
+      g.criado_em AS criacao,
+      CASE WHEN g.natureza = 'Despesa' THEN (SELECT COUNT(*) FROM despesas d WHERE d.grupo_parcelas_id = g.id AND d.pago = 1)
+        ELSE (SELECT COUNT(*) FROM receitas r WHERE r.grupo_parcelas_id = g.id AND r.recebido = 1) END AS concluidas,
+      CASE WHEN g.natureza = 'Receita' THEN (SELECT COUNT(*) FROM receitas r WHERE r.grupo_parcelas_id = g.id AND r.recebido = 1) ELSE 0 END AS recebidas,
+      CASE WHEN g.natureza = 'Despesa' THEN COALESCE((SELECT SUM(p.valor) FROM pagamentos p JOIN despesas d ON d.id = p.despesa_id WHERE d.grupo_parcelas_id = g.id), 0)
+        ELSE COALESCE((SELECT SUM(r.valor) FROM receitas r WHERE r.grupo_parcelas_id = g.id AND r.recebido = 1), 0) END AS pago,
+      CASE WHEN g.natureza = 'Despesa' THEN COALESCE((SELECT SUM(MAX(0, d.valor - d.valor_pago)) FROM despesas d WHERE d.grupo_parcelas_id = g.id), 0)
+        ELSE COALESCE((SELECT SUM(r.valor) FROM receitas r WHERE r.grupo_parcelas_id = g.id AND r.recebido = 0), 0) END AS pendente
+    FROM grupos_parcelas g ORDER BY g.criado_em DESC, g.id DESC
+  `);
+}
+
 export async function buscarLancamentos(): Promise<Lancamento[]> {
   const db = await getDb();
   return db.getAllAsync<Lancamento>(`
-    SELECT id, nome, valor, tipo AS categoria, vencimento AS data, 'Despesa' AS natureza,
+    SELECT id, nome, MAX(0, valor - valor_pago) AS valor, tipo AS categoria, provisao AS data, 'Despesa' AS natureza,
       CASE WHEN pago = 1 THEN 'Pago' ELSE 'Pendente' END AS status
     FROM despesas WHERE pago = 0
     UNION ALL
@@ -49,7 +80,7 @@ export async function excluirMeta(id: number) {
 
 export async function criarBackup(): Promise<string> {
   const db = await getDb();
-  const tabelas = ["despesas", "pagamentos", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"];
+  const tabelas = ["despesas", "pagamentos", "grupos_parcelas", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"];
   const dados: Record<string, unknown[]> = {};
   for (const tabela of tabelas) dados[tabela] = await db.getAllAsync(`SELECT * FROM ${tabela}`);
   return JSON.stringify({ app: "Monetra", formato: 1, criadoEm: new Date().toISOString(), dados });
@@ -58,14 +89,15 @@ export async function criarBackup(): Promise<string> {
 export async function restaurarBackup(texto: string) {
   const backup = JSON.parse(texto) as { app?: string; formato?: number; dados?: Record<string, unknown[]> };
   if (backup.app !== "Monetra" || backup.formato !== 1 || !backup.dados) throw new Error("Arquivo de backup inválido.");
-  const tabelas = ["despesas", "pagamentos", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"] as const;
+  const tabelas = ["despesas", "pagamentos", "grupos_parcelas", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"] as const;
   const tabelasObrigatorias = ["despesas", "pagamentos", "receitas", "orcamentos", "metas", "configuracoes"] as const;
   if (tabelasObrigatorias.some((tabela) => !Array.isArray(backup.dados?.[tabela]))) throw new Error("Arquivo de backup incompleto.");
   const db = await getDb();
   const colunas: Record<(typeof tabelas)[number], string[]> = {
-    despesas: ["id", "nome", "valor", "tipo", "vencimento", "pago", "observacao", "fixa", "frequencia", "criado_em"],
-    pagamentos: ["id", "despesa_id", "nome", "tipo", "valor", "vencimento", "data_pagamento"],
-    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "fixa", "parcelas", "banco_id", "criado_em"],
+    despesas: ["id", "nome", "valor", "tipo", "provisao", "data_emissao", "pago", "observacao", "fixa", "frequencia", "parcelas", "numero_parcela", "grupo_parcelas_id", "valor_pago", "criado_em"],
+    pagamentos: ["id", "despesa_id", "nome", "tipo", "valor", "provisao", "data_pagamento"],
+    grupos_parcelas: ["id", "natureza", "nome", "tipo", "valor_total", "quantidade", "modo_valor", "data_emissao", "criado_em"],
+    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "data_recebimento", "fixa", "parcelas", "banco_id", "grupo_parcelas_id", "numero_parcela", "criado_em"],
     bancos: ["id", "nome", "cor", "criado_em"],
     aplicacoes: ["id", "banco", "valor", "banco_id", "criado_em"],
     saques_aplicacoes: ["id", "aplicacao_id", "banco_id", "banco_nome", "banco_cor", "valor", "data", "receita_id", "criado_em"],
@@ -79,7 +111,11 @@ export async function restaurarBackup(texto: string) {
       await db.runAsync(`DELETE FROM ${tabela}`);
       for (const linha of backup.dados?.[tabela] ?? []) {
         if (!linha || typeof linha !== "object") continue;
-        const registro = linha as Record<string, string | number | null>;
+        const registro = { ...(linha as Record<string, string | number | null>) };
+        if (tabela === "despesas" || tabela === "pagamentos") {
+          registro.provisao ??= registro.vencimento ?? null;
+          delete registro.vencimento;
+        }
         const presentes = colunas[tabela].filter((coluna) => coluna in registro);
         if (!presentes.length) continue;
         const sql = `INSERT INTO ${tabela} (${presentes.join(",")}) VALUES (${presentes.map(() => "?").join(",")})`;

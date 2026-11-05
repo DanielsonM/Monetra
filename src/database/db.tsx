@@ -18,12 +18,16 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       nome TEXT NOT NULL,
       valor REAL NOT NULL,
       tipo TEXT NOT NULL,
-      vencimento TEXT NOT NULL,
+      provisao TEXT NOT NULL,
+      data_emissao TEXT NOT NULL DEFAULT (date('now', 'localtime')),
       pago INTEGER NOT NULL DEFAULT 0,
       observacao TEXT,
       fixa INTEGER NOT NULL DEFAULT 0,
       frequencia TEXT NOT NULL DEFAULT 'mensal',
       parcelas INTEGER NOT NULL DEFAULT 1,
+      numero_parcela INTEGER NOT NULL DEFAULT 1,
+      grupo_parcelas_id INTEGER,
+      valor_pago REAL NOT NULL DEFAULT 0,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -52,8 +56,20 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       nome TEXT NOT NULL,
       tipo TEXT NOT NULL,
       valor REAL NOT NULL,
-      vencimento TEXT NOT NULL,
+      provisao TEXT NOT NULL,
       data_pagamento TEXT NOT NULL DEFAULT (date('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS grupos_parcelas (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      natureza TEXT NOT NULL,
+      nome TEXT NOT NULL,
+      tipo TEXT NOT NULL,
+      valor_total REAL NOT NULL,
+      quantidade INTEGER NOT NULL,
+      modo_valor TEXT NOT NULL,
+      data_emissao TEXT,
+      criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS bancos (
@@ -74,9 +90,12 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       vencimento TEXT NOT NULL,
       observacao TEXT,
       recebido INTEGER NOT NULL DEFAULT 0,
+      data_recebimento TEXT,
       fixa INTEGER NOT NULL DEFAULT 0,
       parcelas INTEGER NOT NULL DEFAULT 1,
       banco_id INTEGER,
+      grupo_parcelas_id INTEGER,
+      numero_parcela INTEGER NOT NULL DEFAULT 1,
       criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -130,6 +149,72 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
   if (!colunas.some((c) => c.name === "parcelas")) {
     await db.execAsync("ALTER TABLE despesas ADD COLUMN parcelas INTEGER NOT NULL DEFAULT 1;");
   }
+  if (!colunas.some((c) => c.name === "valor_pago")) {
+    await db.execAsync("ALTER TABLE despesas ADD COLUMN valor_pago REAL NOT NULL DEFAULT 0;");
+  }
+  if (!colunas.some((c) => c.name === "provisao")) {
+    await db.execAsync("ALTER TABLE despesas ADD COLUMN provisao TEXT NOT NULL DEFAULT ''; UPDATE despesas SET provisao = vencimento WHERE provisao = '';");
+  }
+  if (!colunas.some((c) => c.name === "data_emissao")) {
+    await db.execAsync("ALTER TABLE despesas ADD COLUMN data_emissao TEXT NOT NULL DEFAULT ''; UPDATE despesas SET data_emissao = substr(criado_em, 1, 10) WHERE data_emissao = '';");
+  }
+  if (!colunas.some((c) => c.name === "numero_parcela")) {
+    await db.execAsync("ALTER TABLE despesas ADD COLUMN numero_parcela INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!colunas.some((c) => c.name === "grupo_parcelas_id")) {
+    await db.execAsync("ALTER TABLE despesas ADD COLUMN grupo_parcelas_id INTEGER;");
+  }
+  if (colunas.some((c) => c.name === "vencimento")) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE despesas_nova (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nome TEXT NOT NULL,
+          valor REAL NOT NULL,
+          tipo TEXT NOT NULL,
+          provisao TEXT NOT NULL,
+          data_emissao TEXT NOT NULL DEFAULT (date('now', 'localtime')),
+          pago INTEGER NOT NULL DEFAULT 0,
+          observacao TEXT,
+          fixa INTEGER NOT NULL DEFAULT 0,
+          frequencia TEXT NOT NULL DEFAULT 'mensal',
+          parcelas INTEGER NOT NULL DEFAULT 1,
+          numero_parcela INTEGER NOT NULL DEFAULT 1,
+          grupo_parcelas_id INTEGER,
+          valor_pago REAL NOT NULL DEFAULT 0,
+          criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+        );
+        INSERT INTO despesas_nova (id, nome, valor, tipo, provisao, data_emissao, pago, observacao, fixa, frequencia, parcelas, numero_parcela, grupo_parcelas_id, valor_pago, criado_em)
+        SELECT id, nome, valor, tipo, provisao, data_emissao, pago, observacao, fixa, frequencia, parcelas, numero_parcela, grupo_parcelas_id, valor_pago, criado_em FROM despesas;
+        DROP TABLE despesas;
+        ALTER TABLE despesas_nova RENAME TO despesas;
+      `);
+    });
+  }
+
+  const colunasPagamentos = await db.getAllAsync<{ name: string }>("PRAGMA table_info(pagamentos)");
+  if (!colunasPagamentos.some((c) => c.name === "provisao")) {
+    await db.execAsync("ALTER TABLE pagamentos ADD COLUMN provisao TEXT NOT NULL DEFAULT ''; UPDATE pagamentos SET provisao = vencimento WHERE provisao = '';");
+  }
+  if (colunasPagamentos.some((c) => c.name === "vencimento")) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE pagamentos_nova (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          despesa_id INTEGER,
+          nome TEXT NOT NULL,
+          tipo TEXT NOT NULL,
+          valor REAL NOT NULL,
+          provisao TEXT NOT NULL,
+          data_pagamento TEXT NOT NULL DEFAULT (date('now', 'localtime'))
+        );
+        INSERT INTO pagamentos_nova (id, despesa_id, nome, tipo, valor, provisao, data_pagamento)
+        SELECT id, despesa_id, nome, tipo, valor, provisao, data_pagamento FROM pagamentos;
+        DROP TABLE pagamentos;
+        ALTER TABLE pagamentos_nova RENAME TO pagamentos;
+      `);
+    });
+  }
 
   // Migrações da tabela de receitas
   const colunasReceitas = await db.getAllAsync<{ name: string }>(
@@ -161,6 +246,10 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       "ALTER TABLE receitas ADD COLUMN recebido INTEGER NOT NULL DEFAULT 0;"
     );
   }
+  if (!colunasReceitas.some((c) => c.name === "data_recebimento")) {
+    await db.execAsync("ALTER TABLE receitas ADD COLUMN data_recebimento TEXT;");
+    await db.execAsync("UPDATE receitas SET data_recebimento = data WHERE recebido = 1;");
+  }
   if (!colunasReceitas.some((c) => c.name === "fixa")) {
     await db.execAsync("ALTER TABLE receitas ADD COLUMN fixa INTEGER NOT NULL DEFAULT 0;");
   }
@@ -170,6 +259,12 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
 
   if (!colunasReceitas.some((c) => c.name === "banco_id")) {
     await db.execAsync("ALTER TABLE receitas ADD COLUMN banco_id INTEGER;");
+  }
+  if (!colunasReceitas.some((c) => c.name === "grupo_parcelas_id")) {
+    await db.execAsync("ALTER TABLE receitas ADD COLUMN grupo_parcelas_id INTEGER;");
+  }
+  if (!colunasReceitas.some((c) => c.name === "numero_parcela")) {
+    await db.execAsync("ALTER TABLE receitas ADD COLUMN numero_parcela INTEGER NOT NULL DEFAULT 1;");
   }
 
   const colunasAplicacoes = await db.getAllAsync<{ name: string }>("PRAGMA table_info(aplicacoes)");

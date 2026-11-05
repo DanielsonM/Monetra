@@ -14,9 +14,9 @@ import { dataISOparaBR } from "../utils/converterData";
 // ---------------------------------------------------------------------------
 // Constantes
 // ---------------------------------------------------------------------------
-const CANAL_ID = "vencimentos";
+const CANAL_ID = "provisoes";
 const LIMITE_AGENDADAS = 60; // o iOS aceita no máximo 64 notificações agendadas
-const DIAS_PONTE = 2; // dias após vencer cobertos mesmo sem abrir o app (ver nota)
+const DIAS_PONTE = 2; // dias após a provisão cobertos mesmo sem abrir o app
 
 // Como a notificação se comporta com o app aberto (aparece como banner)
 Notifications.setNotificationHandler({
@@ -38,7 +38,7 @@ async function configurarCanal() {
   if (Platform.OS !== "android") return;
 
   await Notifications.setNotificationChannelAsync(CANAL_ID, {
-    name: "Vencimentos de despesas",
+    name: "Provisões de despesas",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
@@ -79,38 +79,38 @@ type Aviso = {
   hora?: number; // aviso que se repete todo dia nesse horário
 };
 
-// Data do aviso = vencimento + deslocamento em dias, na hora indicada
+// Data do aviso = provisão + deslocamento em dias, na hora indicada
 function dataDoAviso(iso: string, deslocamentoDias: number, hora: number) {
   const [ano, mes, dia] = iso.split("-").map(Number);
   return new Date(ano, mes - 1, dia + deslocamentoDias, hora, 0, 0, 0);
 }
 
-// Quantos dias se passaram desde o vencimento (negativo = ainda não venceu)
-function diasDesdeVencimento(iso: string) {
+// Quantos dias se passaram desde a provisão (negativo = ainda não chegou)
+function diasDesdeProvisao(iso: string) {
   const [ano, mes, dia] = iso.split("-").map(Number);
-  const vencimento = new Date(ano, mes - 1, dia);
+  const provisao = new Date(ano, mes - 1, dia);
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
-  return Math.round((hoje.getTime() - vencimento.getTime()) / 86400000);
+  return Math.round((hoje.getTime() - provisao.getTime()) / 86400000);
 }
 
 function montarAvisos(d: Despesa, c: ConfigNotificacao): Aviso[] {
   const nome = `"${d.nome}"`;
-  const valor = formatarMoeda(d.valor);
-  const venceEm = dataISOparaBR(d.vencimento).slice(0, 5);
+  const valor = formatarMoeda(Math.max(0, d.valor - (d.valor_pago ?? 0)));
+  const provisaoEm = dataISOparaBR(d.provisao).slice(0, 5);
   const horas = horariosDoDia(c);
-  const diasHoje = diasDesdeVencimento(d.vencimento);
+  const diasHoje = diasDesdeProvisao(d.provisao);
   const avisos: Aviso[] = [];
 
-  const textoVencida = `A despesa ${nome} venceu em ${venceEm} e ainda não foi paga (${valor}).`;
+  const textoAtrasada = `A provisão da despesa ${nome} era ${provisaoEm} e ainda está pendente (${valor}).`;
 
-  // Já vencida: repete todo dia, nos horários, até ser paga
+  // Já atrasada: repete todo dia, nos horários, até ser paga
   if (diasHoje >= 1) {
-    if (c.avisarAposVencer) {
+    if (c.avisarAposProvisao) {
       for (const hora of horas) {
         avisos.push({
-          titulo: "Despesa vencida",
-          texto: textoVencida,
+          titulo: "Provisão atrasada",
+          texto: textoAtrasada,
           despesaId: d.id,
           hora,
         });
@@ -119,20 +119,20 @@ function montarAvisos(d: Despesa, c: ConfigNotificacao): Aviso[] {
     return avisos;
   }
 
-  // Antes do vencimento e no próprio dia
-  for (let offset = -c.diasAntes; offset <= 0; offset++) {
+  // Antes da provisão e no próprio dia
+  for (let offset = -c.diasAntesProvisao; offset <= 0; offset++) {
     let titulo: string;
     let texto: string;
 
     if (offset === 0) {
-      titulo = "Despesa vence hoje";
-      texto = `A despesa ${nome} vence hoje (${valor}).`;
+      titulo = "Provisão da despesa hoje";
+      texto = `A despesa ${nome} está provisionada para hoje (${valor}).`;
     } else if (offset === -1) {
-      titulo = "Despesa vence amanhã";
-      texto = `A despesa ${nome} vence amanhã (${valor}).`;
+      titulo = "Provisão da despesa amanhã";
+      texto = `A despesa ${nome} está provisionada para amanhã (${valor}).`;
     } else {
-      titulo = `Despesa vence em ${-offset} dias`;
-      texto = `A despesa ${nome} vence em ${-offset} dias (${valor}).`;
+      titulo = `Provisão da despesa em ${-offset} dias`;
+      texto = `A despesa ${nome} está provisionada para daqui a ${-offset} dias (${valor}).`;
     }
 
     for (const hora of horas) {
@@ -140,20 +140,20 @@ function montarAvisos(d: Despesa, c: ConfigNotificacao): Aviso[] {
         titulo,
         texto,
         despesaId: d.id,
-        quando: dataDoAviso(d.vencimento, offset, hora),
+        quando: dataDoAviso(d.provisao, offset, hora),
       });
     }
   }
 
-  // Ponte: cobre os primeiros dias após vencer caso o app não seja aberto
-  if (c.avisarAposVencer) {
+  // Ponte: cobre os primeiros dias após a provisão caso o app não seja aberto
+  if (c.avisarAposProvisao) {
     for (let offset = 1; offset <= DIAS_PONTE; offset++) {
       for (const hora of horas) {
         avisos.push({
-          titulo: "Despesa vencida",
-          texto: textoVencida,
+          titulo: "Provisão atrasada",
+          texto: textoAtrasada,
           despesaId: d.id,
-          quando: dataDoAviso(d.vencimento, offset, hora),
+          quando: dataDoAviso(d.provisao, offset, hora),
         });
       }
     }
@@ -180,7 +180,7 @@ async function executarSincronizacao() {
 
   const todos = despesas.flatMap((d) => montarAvisos(d, config));
 
-  // Os recorrentes (despesas já vencidas) têm prioridade
+  // Os recorrentes (despesas já atrasadas) têm prioridade
   const recorrentes = todos
     .filter((a) => a.hora !== undefined)
     .slice(0, LIMITE_AGENDADAS);

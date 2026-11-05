@@ -6,7 +6,7 @@ export type LancamentoRecente = {
   valor: number;
   tipo: string;
   data: string;
-  vencimento: string;
+  dataPrevista: string;
   liquidado: number;
   criado_em: string;
   natureza: "despesa" | "receita";
@@ -20,13 +20,13 @@ export async function listarLancamentosRecentes(
 ): Promise<LancamentoRecente[]> {
   const db = await getDb();
   return db.getAllAsync<LancamentoRecente>(
-    `SELECT id, nome, valor, tipo, data, vencimento, liquidado, criado_em, natureza
+    `SELECT id, nome, valor, tipo, data, dataPrevista, liquidado, criado_em, natureza
      FROM (
-       SELECT id, nome, valor, tipo, vencimento AS data, vencimento, pago AS liquidado,
+       SELECT id, nome, MAX(0, valor - valor_pago) AS valor, tipo, provisao AS data, provisao AS dataPrevista, pago AS liquidado,
               criado_em, 'despesa' AS natureza
        FROM despesas
        UNION ALL
-       SELECT id, nome, valor, tipo, data, vencimento, recebido AS liquidado,
+       SELECT id, nome, valor, tipo, data, vencimento AS dataPrevista, recebido AS liquidado,
               criado_em, 'receita' AS natureza
        FROM receitas
      )

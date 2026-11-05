@@ -22,7 +22,7 @@ export default function GastoRapido() {
     }
     try {
       setSalvando(true);
-      const id = await inserirDespesa({ nome: nome.trim(), valor: numero, tipo: categoria.trim(), vencimento: data });
+      const id = await inserirDespesa({ nome: nome.trim(), valor: numero, tipo: categoria.trim(), provisao: data });
       await pagarDespesa(id);
       Alert.alert("Gasto registrado", "A despesa foi marcada como paga e descontada do saldo disponível.", [{ text: "OK", onPress: () => router.back() }]);
     } catch (error) {

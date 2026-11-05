@@ -23,8 +23,10 @@ import {
   atualizarDespesa,
   buscarDespesa,
   inserirDespesa,
+  inserirDespesasParceladas,
   pagarDespesa,
 } from "../../database/dbGestor/dbDespesas";
+import { type ModoValorParcelas } from "../../database/dbGestor/dbParcelamentos";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
 import InfoButton from "../../components/infoButton";
 
@@ -79,7 +81,7 @@ const isoParaDate = (iso: string) => {
 // da direita para a esquerda (5 → 0,05 | 700 → 7,00 | 123456 → 1.234,56)
 const formatarMoeda = (texto: string) => {
   const digitos = texto.replace(/\D/g, "").replace(/^0+/, "");
-  if (!digitos) return "";
+  if (!digitos) return "0,00";
   const preenchido = digitos.padStart(3, "0");
   const inteiros = preenchido
     .slice(0, -2)
@@ -90,6 +92,17 @@ const formatarMoeda = (texto: string) => {
 // Converte "1.234,56" em 1234.56
 const moedaParaNumero = (texto: string) =>
   parseFloat(texto.replace(/\./g, "").replace(",", "."));
+const formatarValorMoeda = (valor: number) =>
+  valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const valorNumeroValido = (texto: string) => {
+  const valor = moedaParaNumero(texto);
+  return Number.isFinite(valor) ? valor : 0;
+};
+
+type CampoData = "emissao" | "provisao";
+
+const hoje = new Date();
+const dataHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
 
 export default function CadDespesas() {
   const router = useRouter();
@@ -102,18 +115,22 @@ export default function CadDespesas() {
   const editando = idEdicao !== null;
 
   const [nome, setNome] = useState("");
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState("0,00");
   const [parcelas, setParcelas] = useState("1");
+  const [modoValor, setModoValor] = useState<ModoValorParcelas>("total");
+  const [utilizarParcelas, setUtilizarParcelas] = useState(false);
   const [tipo, setTipo] = useState("");
-  const [vencimento, setVencimento] = useState<Date | null>(null);
+  const [vencimento, setVencimento] = useState<Date | null>(editando ? null : dataHoje);
+  const [dataEmissao, setDataEmissao] = useState<Date | null>(editando ? null : dataHoje);
   const [observacao, setObservacao] = useState("");
   const [jaPaga, setJaPaga] = useState(false);
   const [fixa, setFixa] = useState(false);
+  const [grupoParcelado, setGrupoParcelado] = useState(false);
   const [frequencia, setFrequencia] = useState<"semanal" | "mensal" | "anual">("mensal");
 
   const [tipoAberto, setTipoAberto] = useState(false);
   const [posTipo, setPosTipo] = useState({ top: 0, left: 0, width: 0 });
-  const [mostrarData, setMostrarData] = useState(false);
+  const [campoData, setCampoData] = useState<CampoData | null>(null);
 
   // Altura máxima da lista: o que sobra da tela, limitado a 320
   const alturaMaxLista = Math.min(320, alturaTela - posTipo.top - 24);
@@ -146,10 +163,12 @@ export default function CadDespesas() {
         setValor(formatarMoeda(String(Math.round(d.valor * 100))));
         setParcelas(String(d.parcelas ?? 1));
         setTipo(d.tipo);
-        setVencimento(isoParaDate(d.vencimento));
+        setVencimento(isoParaDate(d.provisao));
+        setDataEmissao(isoParaDate(d.data_emissao));
         setObservacao(d.observacao ?? "");
         setFixa(d.fixa === 1);
         setFrequencia(d.frequencia ?? "mensal");
+        setGrupoParcelado(Boolean(d.grupo_parcelas_id));
       })
       .catch((erro) => {
         console.error(erro);
@@ -176,8 +195,11 @@ export default function CadDespesas() {
 
   // Chamado quando o usuário escolhe (ou cancela) no seletor de data
   const aoMudarData = (evento: DateTimePickerEvent, data?: Date) => {
-    setMostrarData(false);
-    if (evento.type === "set" && data) setVencimento(data);
+    const campo = campoData;
+    setCampoData(null);
+    if (evento.type !== "set" || !data) return;
+    if (campo === "emissao") setDataEmissao(data);
+    if (campo === "provisao") setVencimento(data);
   };
 
   const salvar = async () => {
@@ -187,8 +209,10 @@ export default function CadDespesas() {
     if (
       !nome.trim() ||
       isNaN(valorNumero) ||
+      valorNumero <= 0 ||
       !tipo ||
       !vencimento ||
+      !dataEmissao ||
       !Number.isInteger(parcelasNumero) ||
       parcelasNumero < 1
     ) {
@@ -200,9 +224,10 @@ export default function CadDespesas() {
       nome: nome.trim(),
       valor: valorNumero,
       tipo,
-      vencimento: paraISO(vencimento),
+      provisao: paraISO(vencimento),
+      data_emissao: paraISO(dataEmissao),
       observacao,
-      fixa,
+      fixa: !utilizarParcelas && fixa,
       frequencia,
       parcelas: parcelasNumero,
     };
@@ -218,7 +243,9 @@ export default function CadDespesas() {
         return;
       }
 
-      const novoId = await inserirDespesa(dados);
+      const novoId = utilizarParcelas && parcelasNumero > 1
+        ? await inserirDespesasParceladas(dados, parcelasNumero, modoValor)
+        : await inserirDespesa(dados);
 
       // Se já está paga: usa o mesmo fluxo do botão "pagar"
       // (grava no histórico e marca como paga; se for fixa, leva o
@@ -248,7 +275,7 @@ export default function CadDespesas() {
         <Text style={styles.titulo}>
           {editando ? "Editar despesa" : "Nova despesa"}
         </Text>
-        <InfoButton compacto titulo="Cadastro de despesa" texto="Informe nome, valor e vencimento. Selecione a frequência semanal, mensal ou anual para despesas recorrentes. Se marcar como paga, o valor sai do saldo disponível e o pagamento fica no histórico." />
+        <InfoButton compacto titulo="Cadastro de despesa" texto="Informe nome, valor, data de emissão e vencimento. Para parcelar, escolha entre informar o valor total ou o valor de cada parcela. Despesas parceladas são registradas mês a mês e agrupadas na consulta." />
       </View>
 
       <ScrollView
@@ -265,7 +292,82 @@ export default function CadDespesas() {
         onChangeText={setNome}
       />
 
-      <Text style={styles.label}>Valor</Text>
+      {!editando && <View style={styles.linhaSwitch}>
+        <View style={styles.textosSwitch}>
+          <Text style={styles.switchTitulo}>Utilizar parcelas</Text>
+          <Text style={styles.switchSubtitulo}>{utilizarParcelas ? "Despesa dividida em parcelas" : "Cadastrar como despesa única"}</Text>
+        </View>
+        <Switch
+          value={utilizarParcelas}
+          onValueChange={(ativo) => {
+            setUtilizarParcelas(ativo);
+            if (ativo) setFixa(false);
+            else {
+              setParcelas("1");
+              setModoValor("total");
+            }
+          }}
+          trackColor={{ false: "#D0D0D0", true: "#80CBC4" }}
+          thumbColor={utilizarParcelas ? "#00897B" : "#F4F4F4"}
+        />
+      </View>}
+
+      {(utilizarParcelas || (editando && grupoParcelado)) && <>
+      <Text style={styles.label}>Número de parcelas</Text>
+      <View style={styles.parcelasControle}>
+        <TouchableOpacity
+          style={[styles.botaoParcela, Number(parcelas) <= 1 && styles.botaoParcelaDesativado]}
+          onPress={() => {
+            setParcelas((atual) => String(Math.max(1, (Number(atual) || 1) - 1)));
+            if (Number(parcelas) <= 2) setModoValor("total");
+          }}
+          disabled={editando || Number(parcelas) <= 1}
+          accessibilityRole="button"
+          accessibilityLabel="Diminuir número de parcelas"
+        >
+          <Ionicons name="remove" size={22} color={Number(parcelas) <= 1 ? "#AAAAAA" : "#00897B"} />
+        </TouchableOpacity>
+        <TextInput
+          style={[styles.input, styles.valorParcelas]}
+          placeholder="1"
+          keyboardType="number-pad"
+          value={parcelas}
+          onChangeText={(texto) => {
+            const quantidade = texto.replace(/\D/g, "");
+            setParcelas(quantidade);
+            if (Number(quantidade) > 1) setFixa(false);
+            else setModoValor("total");
+          }}
+          editable={!editando}
+          textAlign="center"
+        />
+        <TouchableOpacity
+          style={styles.botaoParcela}
+          onPress={() => {
+            setParcelas((atual) => String((Number(atual) || 0) + 1));
+            setFixa(false);
+          }}
+          disabled={editando}
+          accessibilityRole="button"
+          accessibilityLabel="Aumentar número de parcelas"
+        >
+          <Ionicons name="add" size={22} color="#00897B" />
+        </TouchableOpacity>
+      </View>
+
+      {!editando && <>
+      <Text style={styles.label}>Modo do parcelamento</Text>
+      <View style={styles.modosValor}>
+        {(["total", "parcela"] as const).map((modo) => (
+          <TouchableOpacity key={modo} style={[styles.modoValor, modoValor === modo && styles.modoValorAtivo, modo === "parcela" && Number(parcelas) <= 1 && styles.modoValorDesabilitado]} onPress={() => setModoValor(modo)} disabled={modo === "parcela" && Number(parcelas) <= 1} accessibilityRole="button" accessibilityState={{ selected: modoValor === modo, disabled: modo === "parcela" && Number(parcelas) <= 1 }}>
+            <Text style={[styles.modoValorTexto, modoValor === modo && styles.modoValorTextoAtivo, modo === "parcela" && Number(parcelas) <= 1 && styles.modoValorTextoDesabilitado]}>{modo === "total" ? "Valor total" : "Valor por parcela"}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      </>}
+      </>}
+
+      <Text style={styles.label}>{editando && grupoParcelado && Number(parcelas) > 1 ? "Valor desta parcela" : !editando && modoValor === "parcela" ? "Valor de cada parcela" : "Valor total"}</Text>
       <TextInput
         style={styles.input}
         placeholder="0,00"
@@ -273,6 +375,11 @@ export default function CadDespesas() {
         value={valor}
         onChangeText={(texto) => setValor(formatarMoeda(texto))}
       />
+      {!editando && utilizarParcelas && Number(parcelas) > 1 && <Text style={styles.ajudaParcelas}>
+        {modoValor === "total"
+          ? `Total de ${formatarValorMoeda(valorNumeroValido(valor))}, dividido em ${parcelas} parcelas de aproximadamente ${formatarValorMoeda(valorNumeroValido(valor) / Number(parcelas))}.`
+          : `Total do grupo: ${formatarValorMoeda(valorNumeroValido(valor) * Number(parcelas))}.`}
+      </Text>}
 
       <Text style={styles.label}>Tipo</Text>
       <View ref={campoTipoRef} collapsable={false}>
@@ -292,10 +399,19 @@ export default function CadDespesas() {
         </TouchableOpacity>
       </View>
 
+      <Text style={styles.label}>Data de emissão</Text>
+      <TouchableOpacity style={styles.combo} onPress={() => setCampoData("emissao")} activeOpacity={0.7}>
+        <Text style={dataEmissao ? styles.comboTexto : styles.comboPlaceholder}>{dataEmissao ? paraBR(dataEmissao) : "Selecione a data de emissão"}</Text>
+        <Ionicons name="calendar-outline" size={20} color="#666666" />
+      </TouchableOpacity>
+      {campoData === "emissao" && (
+        <DateTimePicker value={dataEmissao ?? dataHoje} mode="date" display={Platform.OS === "ios" ? "inline" : "default"} locale="pt-BR" onChange={aoMudarData} />
+      )}
+
       <Text style={styles.label}>Vencimento</Text>
       <TouchableOpacity
         style={styles.combo}
-        onPress={() => setMostrarData(true)}
+        onPress={() => setCampoData("provisao")}
         activeOpacity={0.7}
       >
         <Text style={vencimento ? styles.comboTexto : styles.comboPlaceholder}>
@@ -304,7 +420,7 @@ export default function CadDespesas() {
         <Ionicons name="calendar-outline" size={20} color="#666666" />
       </TouchableOpacity>
 
-      {mostrarData && (
+      {campoData === "provisao" && (
         <DateTimePicker
           value={vencimento ?? new Date()}
           mode="date"
@@ -313,35 +429,6 @@ export default function CadDespesas() {
           onChange={aoMudarData}
         />
       )}
-
-      <Text style={styles.label}>Número de parcelas</Text>
-      <View style={styles.parcelasControle}>
-        <TouchableOpacity
-          style={[styles.botaoParcela, Number(parcelas) <= 1 && styles.botaoParcelaDesativado]}
-          onPress={() => setParcelas((atual) => String(Math.max(1, (Number(atual) || 1) - 1)))}
-          disabled={Number(parcelas) <= 1}
-          accessibilityRole="button"
-          accessibilityLabel="Diminuir número de parcelas"
-        >
-          <Ionicons name="remove" size={22} color={Number(parcelas) <= 1 ? "#AAAAAA" : "#00897B"} />
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.input, styles.valorParcelas]}
-          placeholder="1"
-          keyboardType="number-pad"
-          value={parcelas}
-          onChangeText={(texto) => setParcelas(texto.replace(/\D/g, ""))}
-          textAlign="center"
-        />
-        <TouchableOpacity
-          style={styles.botaoParcela}
-          onPress={() => setParcelas((atual) => String((Number(atual) || 0) + 1))}
-          accessibilityRole="button"
-          accessibilityLabel="Aumentar número de parcelas"
-        >
-          <Ionicons name="add" size={22} color="#00897B" />
-        </TouchableOpacity>
-      </View>
 
       {/* Despesa recorrente */}
       <View style={styles.linhaSwitch}>
@@ -355,7 +442,14 @@ export default function CadDespesas() {
         </View>
         <Switch
           value={fixa}
-          onValueChange={setFixa}
+          disabled={utilizarParcelas || grupoParcelado}
+          onValueChange={(ativa) => {
+            setFixa(ativa);
+            if (ativa) {
+              setParcelas("1");
+              setModoValor("total");
+            }
+          }}
           trackColor={{ false: "#D0D0D0", true: "#A5D6A7" }}
           thumbColor={fixa ? "#2E7D32" : "#F4F4F4"}
         />
@@ -376,11 +470,11 @@ export default function CadDespesas() {
         <View style={styles.linhaSwitch}>
           <View style={styles.textosSwitch}>
             <Text style={styles.switchTitulo}>Despesa paga</Text>
-            {/*<Text style={styles.switchSubtitulo}>
+            <Text style={styles.switchSubtitulo}>
               {jaPaga
-                ? "Paga — próximo vencimento no mês seguinte"
-                : "Pendente"}
-            </Text>*/}
+                ? Number(parcelas) > 1 ? "A primeira parcela será registrada como paga" : fixa ? "Paga — próximo vencimento no mês seguinte" : "Paga e descontada do saldo disponível"
+                : Number(parcelas) > 1 ? "Pagamento pendente" : "Ainda não paga"}
+            </Text>
           </View>
           <Switch
             value={jaPaga}
@@ -486,6 +580,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   valorParcelas: { flex: 1 },
+  modosValor: { flexDirection: "row", gap: 8 },
+  modoValor: { flex: 1, minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#D0D0D0", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
+  modoValorAtivo: { borderColor: "#00897B", backgroundColor: "#E0F2F1" },
+  modoValorDesabilitado: { opacity: 0.45 },
+  modoValorTexto: { fontSize: 13, color: "#666666", textAlign: "center" },
+  modoValorTextoDesabilitado: { color: "#999999" },
+  modoValorTextoAtivo: { color: "#00796B", fontWeight: "bold" },
+  ajudaParcelas: { fontSize: 12, color: "#777777", marginTop: 5 },
   botaoParcela: {
     width: 46,
     height: 46,

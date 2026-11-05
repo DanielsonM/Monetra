@@ -8,6 +8,23 @@ export type ResumoMes = {
 };
 
 export type GastoTipo = { tipo: string; total: number };
+export type MovimentoParcelado = { id: number; natureza: "Despesa" | "Receita"; nome: string; parcela: number; quantidade: number; valor: number; data: string; status: string };
+
+export async function movimentosParceladosDoMes(mes: string): Promise<MovimentoParcelado[]> {
+  const db = await getDb();
+  return db.getAllAsync<MovimentoParcelado>(`
+    SELECT p.id, 'Despesa' AS natureza, p.nome, d.numero_parcela AS parcela, d.parcelas AS quantidade,
+      p.valor, p.data_pagamento AS data, 'Pago' AS status
+    FROM pagamentos p JOIN despesas d ON d.id = p.despesa_id
+    WHERE d.grupo_parcelas_id IS NOT NULL AND substr(p.data_pagamento, 1, 7) = ?
+    UNION ALL
+    SELECT r.id, 'Receita' AS natureza, r.nome, r.numero_parcela AS parcela, r.parcelas AS quantidade,
+      r.valor, COALESCE(r.data_recebimento, r.data) AS data, 'Recebido' AS status
+    FROM receitas r WHERE r.grupo_parcelas_id IS NOT NULL AND r.recebido = 1
+      AND substr(COALESCE(r.data_recebimento, r.data), 1, 7) = ?
+    ORDER BY data DESC, id DESC
+  `, [mes, mes]);
+}
 export type UnificacaoHistorico = { id: number; natureza: string; nome_unificado: string; valor_unificado: number; nome_origem: string; valor_origem: number; nome_destino: string; valor_destino: number; data_unificacao: string };
 
 export async function listarUnificacoes(): Promise<UnificacaoHistorico[]> {
@@ -33,7 +50,7 @@ export type PlanejamentoMes = {
 };
 
 // Projeção do mês: receitas já recebidas e previstas, menos pagamentos
-// registrados no mês e despesas ainda pendentes com vencimento nesse mês.
+// registrados no mês e despesas ainda pendentes com provisão nesse mês.
 export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
   const db = await getDb();
 
@@ -60,7 +77,7 @@ export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
         [mes]
       ),
       db.getFirstAsync<{ total: number | null }>(
-        "SELECT SUM(valor) AS total FROM despesas WHERE pago = 0 AND substr(vencimento, 1, 7) = ?",
+        "SELECT SUM(MAX(0, valor - valor_pago)) AS total FROM despesas WHERE pago = 0 AND substr(provisao, 1, 7) = ?",
         [mes]
       ),
       db.getAllAsync<GastoTipo>(
@@ -69,8 +86,8 @@ export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
         [mes]
       ),
       db.getAllAsync<GastoTipo>(
-        `SELECT tipo, SUM(valor) AS total FROM despesas
-         WHERE pago = 0 AND substr(vencimento, 1, 7) = ? GROUP BY tipo`,
+        `SELECT tipo, SUM(MAX(0, valor - valor_pago)) AS total FROM despesas
+         WHERE pago = 0 AND substr(provisao, 1, 7) = ? GROUP BY tipo`,
         [mes]
       ),
     ]);

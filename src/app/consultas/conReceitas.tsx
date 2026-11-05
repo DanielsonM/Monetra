@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -23,6 +23,8 @@ import {
 import { dataISOparaBR } from "../../utils/converterData";
 import { listarBancos, type Banco } from "../../database/dbGestor/dbBancos";
 import { ModalSeletorBanco } from "../../components/seletorBanco";
+import CardParcelamento from "../../components/cardParcelamento";
+import NavegadorMes, { chaveMesAtual } from "../../components/navegadorMes";
 
 // Situação de cada receita:
 // - recebida: já foi recebida (entra no saldo disponível)
@@ -61,6 +63,10 @@ const MENSAGEM_VAZIO: Record<Filtro, string> = {
 const formatarReal = (valor: number) =>
   valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+type ItemListaReceita =
+  | { chave: string; natureza: "receita"; receita: Receita }
+  | { chave: string; natureza: "grupo"; grupoId: number; receitas: Receita[] };
+
 // Data de hoje no horário local (AAAA-MM-DD). Não usa toISOString, que
 // converte para UTC e pode mudar o dia dependendo do horário
 const hojeISO = () => {
@@ -87,24 +93,36 @@ export default function ConReceita() {
   const [tiposAbertos, setTiposAbertos] = useState(false);
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [receitaParaReceber, setReceitaParaReceber] = useState<Receita | null>(null);
+  const [gruposAbertos, setGruposAbertos] = useState<Record<number, boolean>>({});
+  const [mesSelecionado, setMesSelecionado] = useState(chaveMesAtual());
 
   const hoje = hojeISO();
+  useEffect(() => {
+    let mesAtualObservado = chaveMesAtual();
+    const intervalo = setInterval(() => {
+      const atual = chaveMesAtual();
+      if (atual !== mesAtualObservado) {
+        const anterior = mesAtualObservado;
+        mesAtualObservado = atual;
+        setMesSelecionado((selecionado) => selecionado === anterior ? atual : selecionado);
+      }
+    }, 60_000);
+    return () => clearInterval(intervalo);
+  }, []);
 
-  // Totais gerais (card de resumo)
-  const total = receitas.reduce((soma, r) => soma + r.valor, 0);
-  const totalRecebido = receitas.reduce(
-    (soma, r) => (r.recebido === 1 ? soma + r.valor : soma),
-    0
-  );
+  const receitasDoMes = receitas.filter((r) => (r.recebido === 1 ? (r.data_recebimento ?? r.vencimento) : r.vencimento).startsWith(mesSelecionado));
+  const totalRecebido = receitasDoMes.reduce((soma, r) => r.recebido === 1 ? soma + r.valor : soma, 0);
+  const totalAReceber = receitasDoMes.reduce((soma, r) => r.recebido === 0 ? soma + r.valor : soma, 0);
+  const total = totalRecebido + totalAReceber;
 
   // Quantidade de receitas em cada filtro
   const contagem: Record<Filtro, number> = {
-    todas: receitas.length,
+    todas: receitasDoMes.length,
     recebidas: 0,
     areceber: 0,
     vencidas: 0,
   };
-  for (const r of receitas) {
+  for (const r of receitasDoMes) {
     const status = statusDe(r, hoje);
     if (status === "recebida") contagem.recebidas++;
     else if (status === "vencida") contagem.vencidas++;
@@ -114,14 +132,14 @@ export default function ConReceita() {
   // Lista exibida de acordo com o filtro escolhido
   const porStatus =
     filtro === "todas"
-      ? receitas
-      : receitas.filter(
+      ? receitasDoMes
+      : receitasDoMes.filter(
           (r) => statusDe(r, hoje) === STATUS_DO_FILTRO[filtro]
         );
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
   const tiposDisponiveis = [
     "Todos",
-    ...Array.from(new Set(receitas.map((receita) => receita.tipo))).sort((a, b) =>
+    ...Array.from(new Set(receitasDoMes.map((receita) => receita.tipo))).sort((a, b) =>
       a.localeCompare(b, "pt-BR")
     ),
   ];
@@ -139,6 +157,27 @@ export default function ConReceita() {
         : "Busca desativada";
   const totalFiltrado = filtradas.reduce((soma, r) => soma + r.valor, 0);
   const pesquisaAtiva = (buscarNome && Boolean(busca.trim())) || (buscarTipo && tipoSelecionado !== "Todos");
+
+  const itensLista: ItemListaReceita[] = [];
+  const gruposAdicionados = new Set<number>();
+  const receitasPorGrupo = new Map<number, Receita[]>();
+  for (const receita of receitasDoMes) {
+    if (!receita.grupo_parcelas_id) continue;
+    const grupo = receitasPorGrupo.get(receita.grupo_parcelas_id) ?? [];
+    grupo.push(receita);
+    receitasPorGrupo.set(receita.grupo_parcelas_id, grupo);
+  }
+  for (const receita of filtradas) {
+    if (receita.grupo_parcelas_id) {
+      if (gruposAdicionados.has(receita.grupo_parcelas_id)) continue;
+      gruposAdicionados.add(receita.grupo_parcelas_id);
+      const integrantes = (receitasPorGrupo.get(receita.grupo_parcelas_id) ?? [])
+        .sort((a, b) => a.numero_parcela - b.numero_parcela);
+      itensLista.push({ chave: `g${receita.grupo_parcelas_id}`, natureza: "grupo", grupoId: receita.grupo_parcelas_id, receitas: integrantes });
+    } else {
+      itensLista.push({ chave: `r${receita.id}`, natureza: "receita", receita });
+    }
+  }
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -232,12 +271,12 @@ export default function ConReceita() {
     }
   };
 
-  const renderItem = ({ item }: { item: Receita }) => {
+  const renderReceita = (item: Receita, compacta = false) => {
     const status = statusDe(item, hoje);
 
     return (
       <TouchableOpacity
-        style={styles.card}
+        style={compacta ? styles.itemGrupo : styles.card}
         activeOpacity={0.8}
         onPress={() => editar(item)}
       >
@@ -248,6 +287,7 @@ export default function ConReceita() {
             Entrada: {dataISOparaBR(item.data)} · Venc.:{" "}
             {dataISOparaBR(item.vencimento)}
           </Text>
+          {item.grupo_parcelas_id && <Text style={styles.detalheParcela}>Parcela {item.numero_parcela} de {item.parcelas}</Text>}
           {item.banco_nome && <View style={styles.rotuloBanco}>
             <View style={[styles.corBanco, { backgroundColor: item.banco_cor || "#1565C0" }]} />
             <Text style={styles.nomeBanco}>{item.banco_nome}</Text>
@@ -293,6 +333,27 @@ export default function ConReceita() {
     );
   };
 
+  const renderItem = ({ item }: { item: ItemListaReceita }) => {
+    if (item.natureza === "receita") return renderReceita(item.receita);
+    const primeira = item.receitas[0];
+    const totalGrupo = item.receitas.reduce((soma, receita) => soma + receita.valor, 0);
+    const recebidas = item.receitas.filter((receita) => receita.recebido === 1).length;
+    return (
+      <CardParcelamento
+        nome={primeira?.nome ?? "Parcelamento"}
+        tipo={primeira?.tipo ?? "Receita"}
+        total={totalGrupo}
+        quantidade={item.receitas.length}
+        pagas={recebidas}
+        natureza="receita"
+        aberto={Boolean(gruposAbertos[item.grupoId])}
+        onPress={() => setGruposAbertos((atual) => ({ ...atual, [item.grupoId]: !atual[item.grupoId] }))}
+      >
+        {item.receitas.map((receita) => <View key={receita.id}>{renderReceita(receita, true)}</View>)}
+      </CardParcelamento>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Cabeçalho com botão de voltar */}
@@ -304,26 +365,22 @@ export default function ConReceita() {
         <InfoButton compacto titulo="Consulta de receitas" texto="Veja e gerencie as receitas cadastradas. O botão + cria uma receita; use a ação de recebimento para registrar quando o valor entrar. Em Unificar receitas a receber, escolha a receita que continuará e a que será somada. A operação fica em Históricos > Unificações." />
       </View>
 
-      {/* Resumo com o botão "+" para adicionar receita */}
+      {/* Resumo mensal com navegação entre meses */}
       <View style={styles.resumo}>
         <View style={styles.resumoTopo}>
           <Text style={styles.resumoLabel}>
-            Total ({receitas.length}{" "}
-            {receitas.length === 1 ? "receita" : "receitas"})
+            Receitas recebidas ({receitasDoMes.filter((r) => r.recebido === 1).length})
           </Text>
-
-          <TouchableOpacity
-            onPress={adicionar}
-            hitSlop={12}
-            activeOpacity={0.7}
-          >
+        </View>
+        <NavegadorMes mes={mesSelecionado} onChange={setMesSelecionado} />
+        <Text style={styles.resumoValor}>{formatarReal(totalRecebido)}</Text>
+        <Text style={styles.resumoDetalhe}>Faltam receber: {formatarReal(totalAReceber)}</Text>
+        <Text style={styles.resumoDetalhe}>Total de receitas no mês: {formatarReal(total)}</Text>
+        <View style={styles.linhaAdicionar}>
+          <TouchableOpacity onPress={adicionar} hitSlop={12} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Adicionar receita">
             <Ionicons name="add-circle-outline" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
-        <Text style={styles.resumoValor}>{formatarReal(total)}</Text>
-        <Text style={styles.resumoDetalhe}>
-          Recebido: {formatarReal(totalRecebido)}
-        </Text>
         <TouchableOpacity style={styles.botaoUnificar} onPress={unificar} activeOpacity={0.8}>
           <Ionicons name="git-compare-outline" size={18} color="#FFFFFF" />
           <Text style={styles.botaoUnificarTexto}>Unificar receitas a receber</Text>
@@ -386,8 +443,8 @@ export default function ConReceita() {
       )}
 
       <FlatList
-        data={filtradas}
-        keyExtractor={(item) => String(item.id)}
+        data={itensLista}
+        keyExtractor={(item) => item.chave}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.lista}
@@ -466,6 +523,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   resumoDetalhe: { fontSize: 13, color: "#E0F2F1", marginTop: 4 },
+  linhaAdicionar: { alignItems: "flex-end", marginTop: 4 },
   botaoUnificar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#00796B", borderRadius: 10, paddingVertical: 11, marginTop: 14 },
   botaoUnificarTexto: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
 
@@ -527,6 +585,8 @@ const styles = StyleSheet.create({
   statusPendente: { color: "#F57C00" },
   statusVencida: { color: "#D32F2F" },
   cardDireita: { alignItems: "flex-end", gap: 10 },
+  itemGrupo: { paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E7E7E7", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  detalheParcela: { fontSize: 12, color: "#00897B", fontWeight: "600", marginTop: 3 },
   valor: { fontSize: 17, fontWeight: "bold", color: "#2E7D32" },
   rotuloBanco: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 6, marginTop: 6, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 16, backgroundColor: "#F1F3F5" },
   corBanco: { width: 10, height: 10, borderRadius: 5 },

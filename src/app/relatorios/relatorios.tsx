@@ -25,6 +25,13 @@ const opcoes = [
     cor: "#1565C0",
     rota: "/relatorios/saquesAplicacoes",
   },
+  {
+    titulo: "Parcelamentos",
+    descricao: "Acompanhe parcelas pagas, recebidas e pendentes",
+    icone: "albums-outline" as const,
+    cor: "#6A1B9A",
+    rota: "/relatorios/parcelamentos",
+  },
 ];
 
 export default function Relatorios() {

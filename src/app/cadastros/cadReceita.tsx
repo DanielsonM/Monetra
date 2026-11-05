@@ -23,7 +23,9 @@ import {
   atualizarReceita,
   buscarReceita,
   inserirReceita,
+  inserirReceitasParceladas,
 } from "../../database/dbGestor/dbReceitas";
+import { type ModoValorParcelas } from "../../database/dbGestor/dbParcelamentos";
 import InfoButton from "../../components/infoButton";
 import { TIPO_RECEITA_SAQUE } from "../../database/dbGestor/dbAplicacoes";
 import { listarBancos, type Banco } from "../../database/dbGestor/dbBancos";
@@ -50,7 +52,7 @@ type CampoData = "previsao";
 // da direita para a esquerda (5 → 0,05 | 700 → 7,00 | 123456 → 1.234,56)
 const mascaraMoeda = (texto: string) => {
   const digitos = texto.replace(/\D/g, "").replace(/^0+/, "");
-  if (!digitos) return "";
+  if (!digitos) return "0,00";
   const preenchido = digitos.padStart(3, "0");
   const inteiros = preenchido
     .slice(0, -2)
@@ -61,6 +63,12 @@ const mascaraMoeda = (texto: string) => {
 // Converte "1.234,56" em 1234.56
 const moedaParaNumero = (texto: string) =>
   parseFloat(texto.replace(/\./g, "").replace(",", "."));
+const valorNumeroAtual = (texto: string) => {
+  const valor = moedaParaNumero(texto);
+  return Number.isFinite(valor) ? valor : 0;
+};
+const formatarMoedaSeguro = (valor: number) =>
+  valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 // Formatadores locais (não usam toISOString, que converte para UTC
 // e pode mudar o dia dependendo do horário)
@@ -87,8 +95,9 @@ export default function CadReceita() {
   const editando = idEdicao !== null;
 
   const [nome, setNome] = useState("");
-  const [valor, setValor] = useState("");
+  const [valor, setValor] = useState("0,00");
   const [parcelas, setParcelas] = useState("1");
+  const [modoValor, setModoValor] = useState<ModoValorParcelas>("total");
   const [tipo, setTipo] = useState("");
   const [dataEntrada, setDataEntrada] = useState<Date | null>(
     editando ? null : new Date()
@@ -100,6 +109,7 @@ export default function CadReceita() {
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [bancoId, setBancoId] = useState<number | null>(null);
   const [fixa, setFixa] = useState(false);
+  const [grupoParcelado, setGrupoParcelado] = useState(false);
   const [observacao, setObservacao] = useState("");
   const [campoData, setCampoData] = useState<CampoData | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -150,6 +160,7 @@ export default function CadReceita() {
         setRecebido(r.recebido === 1);
         setBancoId(r.banco_id ?? null);
         setFixa(r.fixa === 1);
+        setGrupoParcelado(Boolean(r.grupo_parcelas_id));
         setObservacao(r.observacao ?? "");
       })
       .catch((erro) => {
@@ -209,6 +220,7 @@ export default function CadReceita() {
     if (
       !nome.trim() ||
       isNaN(valorNumero) ||
+      valorNumero <= 0 ||
       !tipo ||
       !dataEntrada ||
       !dataPrevisao ||
@@ -242,7 +254,8 @@ export default function CadReceita() {
         await atualizarReceita(idEdicao, dados);
         Alert.alert("Pronto", "Receita atualizada!");
       } else {
-        await inserirReceita(dados);
+        if (parcelasNumero > 1) await inserirReceitasParceladas(dados, parcelasNumero, modoValor);
+        else await inserirReceita(dados);
         Alert.alert("Pronto", "Receita cadastrada!");
       }
 
@@ -265,7 +278,7 @@ export default function CadReceita() {
         <Text style={styles.titulo}>
           {editando ? "Editar receita" : "Nova receita"}
         </Text>
-        <InfoButton compacto titulo="Cadastro de receita" texto="Informe a origem, o valor e a previsão de recebimento. Marque como recebida quando o dinheiro entrar; assim ele passa a compor o saldo disponível." />
+        <InfoButton compacto titulo="Cadastro de receita" texto="Informe a origem, a previsão e o valor. Para parcelar, escolha entre informar o valor total ou o valor de cada parcela. Marque como recebida quando o dinheiro entrar; assim ele passa a compor o saldo disponível." />
       </View>
 
       <ScrollView
@@ -285,8 +298,11 @@ export default function CadReceita() {
         <View style={styles.parcelasControle}>
           <TouchableOpacity
             style={[styles.botaoParcela, Number(parcelas) <= 1 && styles.botaoParcelaDesativado]}
-            onPress={() => setParcelas((atual) => String(Math.max(1, (Number(atual) || 1) - 1)))}
-            disabled={Number(parcelas) <= 1}
+            onPress={() => {
+              setParcelas((atual) => String(Math.max(1, (Number(atual) || 1) - 1)));
+              if (Number(parcelas) <= 2) setModoValor("total");
+            }}
+            disabled={editando || Number(parcelas) <= 1}
             accessibilityRole="button"
             accessibilityLabel="Diminuir número de parcelas"
           >
@@ -297,12 +313,22 @@ export default function CadReceita() {
             placeholder="1"
             keyboardType="number-pad"
             value={parcelas}
-            onChangeText={(texto) => setParcelas(texto.replace(/\D/g, ""))}
+            onChangeText={(texto) => {
+              const quantidade = texto.replace(/\D/g, "");
+              setParcelas(quantidade);
+              if (Number(quantidade) > 1) setFixa(false);
+              else setModoValor("total");
+            }}
+            editable={!editando}
             textAlign="center"
           />
           <TouchableOpacity
             style={styles.botaoParcela}
-            onPress={() => setParcelas((atual) => String((Number(atual) || 0) + 1))}
+            onPress={() => {
+              setParcelas((atual) => String((Number(atual) || 0) + 1));
+              setFixa(false);
+            }}
+            disabled={editando}
             accessibilityRole="button"
             accessibilityLabel="Aumentar número de parcelas"
           >
@@ -310,7 +336,18 @@ export default function CadReceita() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.label}>Valor</Text>
+        {!editando && <>
+          <Text style={styles.label}>Modo do parcelamento</Text>
+          <View style={styles.modosValor}>
+            {(["total", "parcela"] as const).map((modo) => (
+              <TouchableOpacity key={modo} style={[styles.modoValor, modoValor === modo && styles.modoValorAtivo, modo === "parcela" && Number(parcelas) <= 1 && styles.modoValorDesabilitado]} onPress={() => setModoValor(modo)} disabled={modo === "parcela" && Number(parcelas) <= 1} accessibilityRole="button" accessibilityState={{ selected: modoValor === modo, disabled: modo === "parcela" && Number(parcelas) <= 1 }}>
+                <Text style={[styles.modoValorTexto, modoValor === modo && styles.modoValorTextoAtivo, modo === "parcela" && Number(parcelas) <= 1 && styles.modoValorTextoDesabilitado]}>{modo === "total" ? "Valor total" : "Valor por parcela"}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>}
+
+        <Text style={styles.label}>{editando && grupoParcelado && Number(parcelas) > 1 ? "Valor desta parcela" : !editando && modoValor === "parcela" ? "Valor de cada parcela" : "Valor total"}</Text>
         <TextInput
           style={styles.input}
           placeholder="0,00"
@@ -318,6 +355,11 @@ export default function CadReceita() {
           value={valor}
           onChangeText={(texto) => setValor(mascaraMoeda(texto))}
         />
+        {!editando && Number(parcelas) > 1 && <Text style={styles.ajudaParcelas}>
+          {modoValor === "total"
+            ? `O total será dividido em ${parcelas} parcelas de ${formatarMoedaSeguro(valorNumeroAtual(valor) / Number(parcelas))}.`
+            : `Total do grupo: ${formatarMoedaSeguro(valorNumeroAtual(valor) * Number(parcelas))}.`}
+        </Text>}
 
         <Text style={styles.label}>Tipo</Text>
         <View ref={campoTipoRef} collapsable={false}>
@@ -358,14 +400,14 @@ export default function CadReceita() {
             <Text style={styles.switchTitulo}>Receita fixa</Text>
             <Text style={styles.switchSubtitulo}>{fixa ? "Receita recorrente" : "Receita única"}</Text>
           </View>
-          <Switch value={fixa} onValueChange={setFixa} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={fixa ? "#00897B" : "#F4F4F4"} />
+          <Switch value={fixa} disabled={grupoParcelado} onValueChange={(ativa) => { setFixa(ativa); if (ativa) { setParcelas("1"); setModoValor("total"); } }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={fixa ? "#00897B" : "#F4F4F4"} />
         </View>
         <View style={styles.linhaSwitch}>
           <View style={styles.textosSwitch}>
             <Text style={styles.switchTitulo}>Recebido</Text>
             <Text style={styles.switchSubtitulo}>
               {recebido
-                ? "Já recebida, soma no saldo disponível"
+                ? Number(parcelas) > 1 ? "A primeira parcela será registrada como recebida" : "Já recebida, soma no saldo disponível"
                 : "A receber, ainda não soma no saldo"}
             </Text>
           </View>
@@ -481,6 +523,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   valorParcelas: { flex: 1 },
+  modosValor: { flexDirection: "row", gap: 8 },
+  modoValor: { flex: 1, minHeight: 42, borderRadius: 10, borderWidth: 1, borderColor: "#D0D0D0", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
+  modoValorAtivo: { borderColor: "#00897B", backgroundColor: "#E0F2F1" },
+  modoValorDesabilitado: { opacity: 0.45 },
+  modoValorTexto: { fontSize: 13, color: "#666666", textAlign: "center" },
+  modoValorTextoDesabilitado: { color: "#999999" },
+  modoValorTextoAtivo: { color: "#00796B", fontWeight: "bold" },
+  ajudaParcelas: { fontSize: 12, color: "#777777", marginTop: 5 },
   botaoParcela: {
     width: 46,
     height: 46,

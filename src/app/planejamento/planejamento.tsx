@@ -167,7 +167,7 @@ export default function Planejamento() {
         <InfoButton
           compacto
           titulo="Planejamento mensal"
-          texto="A previsão soma receitas já recebidas e a receber no mês, depois desconta despesas pagas e contas pendentes com vencimento nesse mês. Ela mostra quanto sobra se as receitas previstas entrarem e as contas forem pagas. Não inclui dinheiro guardado de meses anteriores."
+          texto="A previsão soma receitas já recebidas e a receber no mês, depois desconta despesas pagas e contas pendentes com provisão nesse mês. Ela mostra quanto sobra se as receitas previstas entrarem e as contas forem pagas. Não inclui dinheiro guardado de meses anteriores."
         />
       </View>
 
@@ -376,7 +376,7 @@ export default function Planejamento() {
         )}
 
         <Text style={styles.nota}>
-          A previsão usa receitas recebidas ou a receber no mês e despesas pagas ou pendentes com vencimento no mês. Não inclui saldo acumulado de meses anteriores.
+          A previsão usa receitas recebidas ou a receber no mês e despesas pagas ou pendentes com provisão no mês. Não inclui saldo acumulado de meses anteriores.
         </Text>
       </ScrollView>
       <Modal visible={modalOrcamento} transparent animationType="slide" onRequestClose={() => setModalOrcamento(false)}>

@@ -69,7 +69,7 @@ function statusDoLancamento(item: LancamentoRecente) {
       : { texto: "Pago", icone: "checkmark-circle" as NomeIcone, cor: "#2E7D32" };
   }
 
-  const vencido = item.vencimento < hojeISO();
+  const vencido = item.dataPrevista < hojeISO();
   if (vencido) {
     return { texto: "Vencida", icone: "warning" as NomeIcone, cor: "#B71C1C" };
   }
@@ -184,8 +184,8 @@ export default function LancamentosRecentes() {
                     <View style={styles.linhaStatus}>
                       <Text style={styles.data}>
                         {receita
-                          ? `Entrada: ${dataISOparaBR(item.data)} · Venc.: ${dataISOparaBR(item.vencimento)} ·`
-                          : `Vencimento: ${dataISOparaBR(item.vencimento)} ·`}
+                          ? `Entrada: ${dataISOparaBR(item.data)} · Venc.: ${dataISOparaBR(item.dataPrevista)} ·`
+                          : `Provisão: ${dataISOparaBR(item.dataPrevista)} ·`}
                       </Text>
                       <Ionicons name={status.icone} size={16} color={status.cor} />
                       <Text style={[styles.statusTexto, { color: status.cor }]}>

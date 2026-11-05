@@ -1,36 +1,48 @@
 import { somarUmMes } from "../../utils/converterData";
 import { getDb } from "../db";
+import { totalReceitasRecebidas } from "./dbReceitas";
+import { dataDaParcela, distribuirValoresParcelas, type ModoValorParcelas } from "./dbParcelamentos";
 
 export type Despesa = {
   id: number;
   nome: string;
   valor: number;
   tipo: string;
-  vencimento: string; // AAAA-MM-DD
+  provisao: string; // AAAA-MM-DD
+  data_emissao: string;
   pago: number; // 0 = não pago, 1 = pago
   observacao: string | null;
   fixa: number; // 0 = única, 1 = fixa (repete todo mês até ser removida)
   frequencia: "semanal" | "mensal" | "anual";
   parcelas: number;
+  numero_parcela: number;
+  grupo_parcelas_id: number | null;
+  valor_pago: number;
   criado_em: string;
 };
 
-export async function inserirDespesa(
-  d: Omit<Despesa, "id" | "criado_em" | "pago" | "observacao" | "fixa" | "frequencia" | "parcelas"> & {
-    observacao?: string;
-    fixa?: boolean;
-    frequencia?: "semanal" | "mensal" | "anual";
-    parcelas?: number;
-  }
-) {
+export type DadosNovaDespesa = {
+  nome: string;
+  valor: number;
+  tipo: string;
+  provisao: string;
+  data_emissao?: string;
+  observacao?: string;
+  fixa?: boolean;
+  frequencia?: "semanal" | "mensal" | "anual";
+  parcelas?: number;
+};
+
+export async function inserirDespesa(d: DadosNovaDespesa) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO despesas (nome, valor, tipo, vencimento, observacao, fixa, frequencia, parcelas) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO despesas (nome, valor, tipo, provisao, data_emissao, observacao, fixa, frequencia, parcelas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
       d.nome,
       d.valor,
       d.tipo,
-      d.vencimento,
+      d.provisao,
+      d.data_emissao ?? dataHojeISO(),
       d.observacao?.trim() || null,
       d.fixa ? 1 : 0,
       d.frequencia ?? "mensal",
@@ -40,10 +52,50 @@ export async function inserirDespesa(
   return r.lastInsertRowId;
 }
 
+export async function inserirDespesasParceladas(
+  d: DadosNovaDespesa,
+  quantidade: number,
+  modo: ModoValorParcelas
+) {
+  if (quantidade < 2 || !Number.isInteger(quantidade) || d.valor <= 0) {
+    throw new Error("Informe um valor positivo e pelo menos duas parcelas.");
+  }
+  const valores = distribuirValoresParcelas(d.valor, quantidade, modo);
+  const total = valores.reduce((soma, valor) => soma + valor, 0);
+  const db = await getDb();
+  let primeiraDespesaId = 0;
+  await db.withTransactionAsync(async () => {
+    const grupo = await db.runAsync(
+      "INSERT INTO grupos_parcelas (natureza, nome, tipo, valor_total, quantidade, modo_valor, data_emissao) VALUES ('Despesa', ?, ?, ?, ?, ?, ?)",
+      [d.nome, d.tipo, total, quantidade, modo, d.data_emissao ?? dataHojeISO()]
+    );
+    for (let indice = 0; indice < quantidade; indice++) {
+      const resultado = await db.runAsync(
+        `INSERT INTO despesas (nome, valor, tipo, provisao, data_emissao, observacao, fixa, frequencia, parcelas, numero_parcela, grupo_parcelas_id)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+        [
+          d.nome,
+          valores[indice],
+          d.tipo,
+          dataDaParcela(d.provisao, indice),
+          d.data_emissao ?? dataHojeISO(),
+          d.observacao?.trim() || null,
+          d.frequencia ?? "mensal",
+          quantidade,
+          indice + 1,
+          grupo.lastInsertRowId,
+        ]
+      );
+      if (indice === 0) primeiraDespesaId = resultado.lastInsertRowId;
+    }
+  });
+  return primeiraDespesaId;
+}
+
 export async function listarDespesas(): Promise<Despesa[]> {
   const db = await getDb();
   return db.getAllAsync<Despesa>(
-    "SELECT * FROM despesas ORDER BY vencimento ASC"
+    "SELECT * FROM despesas ORDER BY provisao ASC"
   );
 }
 
@@ -63,7 +115,8 @@ export async function atualizarDespesa(
     nome: string;
     valor: number;
     tipo: string;
-    vencimento: string;
+    provisao: string;
+    data_emissao?: string;
     observacao?: string;
     fixa?: boolean;
     frequencia?: "semanal" | "mensal" | "anual";
@@ -71,20 +124,18 @@ export async function atualizarDespesa(
   }
 ) {
   const db = await getDb();
-  await db.runAsync(
-    "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, vencimento = ?, observacao = ?, fixa = ?, frequencia = ?, parcelas = ? WHERE id = ?",
-    [
-      d.nome,
-      d.valor,
-      d.tipo,
-      d.vencimento,
-      d.observacao?.trim() || null,
-      d.fixa ? 1 : 0,
-      d.frequencia ?? "mensal",
-      d.parcelas ?? 1,
-      id,
-    ]
-  );
+  const atual = await db.getFirstAsync<{ grupo_parcelas_id: number | null }>("SELECT grupo_parcelas_id FROM despesas WHERE id = ?", [id]);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, provisao = ?, data_emissao = ?, observacao = ?, fixa = ?, frequencia = ?, parcelas = ? WHERE id = ?",
+      [d.nome, d.valor, d.tipo, d.provisao, d.data_emissao ?? dataHojeISO(), d.observacao?.trim() || null, d.fixa ? 1 : 0, d.frequencia ?? "mensal", d.parcelas ?? 1, id]
+    );
+    if (atual?.grupo_parcelas_id) {
+      await db.runAsync("UPDATE despesas SET nome = ?, tipo = ?, data_emissao = ? WHERE grupo_parcelas_id = ?", [d.nome, d.tipo, d.data_emissao ?? dataHojeISO(), atual.grupo_parcelas_id]);
+      const total = await db.getFirstAsync<{ total: number | null }>("SELECT SUM(valor) AS total FROM despesas WHERE grupo_parcelas_id = ?", [atual.grupo_parcelas_id]);
+      await db.runAsync("UPDATE grupos_parcelas SET nome = ?, tipo = ?, valor_total = ? WHERE id = ?", [d.nome, d.tipo, total?.total ?? d.valor, atual.grupo_parcelas_id]);
+    }
+  });
 }
 
 // Despesas não pagas (de qualquer data) + as do mês atual em diante
@@ -92,15 +143,15 @@ export async function listarRecentes(limite = 5): Promise<Despesa[]> {
   const db = await getDb();
   return db.getAllAsync<Despesa>(
     `SELECT * FROM despesas
-     WHERE pago = 0 OR vencimento >= date('now', 'localtime', 'start of month')
-     ORDER BY vencimento ASC
+     WHERE pago = 0 OR provisao >= date('now', 'localtime', 'start of month')
+     ORDER BY provisao ASC
      LIMIT ?`,
     [limite]
   );
 }
 
-// Registra o pagamento no histórico e marca como paga.
-// Se for despesa fixa, empurra o vencimento para o mês seguinte
+// Registra a quitação do valor restante no histórico e marca como paga.
+// Se for despesa fixa, empurra a provisão para o próximo período
 // (tudo junto: ou grava tudo, ou nada)
 export async function pagarDespesa(id: number) {
   const db = await getDb();
@@ -110,20 +161,47 @@ export async function pagarDespesa(id: number) {
   );
   if (!d) return;
 
-  await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      "INSERT INTO pagamentos (despesa_id, nome, tipo, valor, vencimento) VALUES (?, ?, ?, ?, ?)",
-      [d.id, d.nome, d.tipo, d.valor, d.vencimento]
-    );
+  await registrarPagamento(id, Math.max(0, d.valor - (d.valor_pago ?? 0)));
+}
 
-    if (d.fixa) {
-      const proximoVencimento = somarFrequencia(d.vencimento, d.frequencia);
-      await db.runAsync(
-        "UPDATE despesas SET pago = 1, vencimento = ? WHERE id = ?",
-        [proximoVencimento, id]
-      );
+// Lança um pagamento parcial, abatendo o valor pendente sem fechar a despesa.
+export async function pagarParcialDespesa(id: number, valor: number) {
+  const db = await getDb();
+  const d = await db.getFirstAsync<Despesa>("SELECT * FROM despesas WHERE id = ?", [id]);
+  if (!d || d.pago) throw new Error("Esta despesa não está pendente.");
+  const pendente = Math.max(0, d.valor - (d.valor_pago ?? 0));
+  if (!Number.isFinite(valor) || valor <= 0 || valor >= pendente) {
+    throw new Error("Informe um valor maior que zero e menor que o saldo pendente.");
+  }
+  const [entradas, saidas] = await Promise.all([
+    totalReceitasRecebidas(),
+    totalDespesasPagas(),
+  ]);
+  if (valor > Math.max(0, entradas - saidas) + 0.005) {
+    throw new Error("Saldo disponível insuficiente para realizar este pagamento.");
+  }
+  await registrarPagamento(id, valor);
+}
+
+async function registrarPagamento(id: number, valor: number) {
+  const db = await getDb();
+  const d = await db.getFirstAsync<Despesa>("SELECT * FROM despesas WHERE id = ?", [id]);
+  if (!d || d.pago || valor <= 0) return;
+  await db.withTransactionAsync(async () => {
+    const totalPago = (d.valor_pago ?? 0) + valor;
+    await db.runAsync(
+      "INSERT INTO pagamentos (despesa_id, nome, tipo, valor, provisao) VALUES (?, ?, ?, ?, ?)",
+      [d.id, d.nome, d.tipo, valor, d.provisao]
+    );
+    if (totalPago + 0.005 >= d.valor) {
+      if (d.fixa) {
+        const proximaProvisao = somarFrequencia(d.provisao, d.frequencia);
+        await db.runAsync("UPDATE despesas SET pago = 1, valor_pago = ?, provisao = ? WHERE id = ?", [d.valor, proximaProvisao, id]);
+      } else {
+        await db.runAsync("UPDATE despesas SET pago = 1, valor_pago = ? WHERE id = ?", [d.valor, id]);
+      }
     } else {
-      await db.runAsync("UPDATE despesas SET pago = 1 WHERE id = ?", [id]);
+      await db.runAsync("UPDATE despesas SET valor_pago = ? WHERE id = ?", [totalPago, id]);
     }
   });
 }
@@ -135,9 +213,10 @@ export async function unificarDespesas(origemId: number, destinoId: number) {
     const destino = await db.getFirstAsync<Despesa>("SELECT * FROM despesas WHERE id = ? AND pago = 0", [destinoId]);
     if (!origem || !destino || origem.id === destino.id) throw new Error("As despesas selecionadas não estão mais disponíveis.");
     const valor = origem.valor + destino.valor;
+    const valorPago = (origem.valor_pago ?? 0) + (destino.valor_pago ?? 0);
     const mensagem = `Unificada com ${origem.nome} (${origem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em ${new Date().toLocaleDateString("pt-BR")}.`;
     const observacao = [destino.observacao?.trim(), mensagem].filter(Boolean).join("\n");
-    await db.runAsync("UPDATE despesas SET valor = ?, observacao = ? WHERE id = ?", [valor, observacao, destino.id]);
+    await db.runAsync("UPDATE despesas SET valor = ?, valor_pago = ?, observacao = ? WHERE id = ?", [valor, valorPago, observacao, destino.id]);
     await db.runAsync("DELETE FROM despesas WHERE id = ?", [origem.id]);
     await db.runAsync("INSERT INTO unificacoes (natureza, nome_unificado, valor_unificado, nome_origem, valor_origem, nome_destino, valor_destino) VALUES (?, ?, ?, ?, ?, ?, ?)", ["Despesa", destino.nome, valor, origem.nome, origem.valor, destino.nome, destino.valor]);
   });
@@ -157,15 +236,15 @@ function somarFrequencia(data: string, frequencia: Despesa["frequencia"]): strin
   return `${proxima.getFullYear()}-${String(proxima.getMonth() + 1).padStart(2, "0")}-${String(proxima.getDate()).padStart(2, "0")}`;
 }
 
-// Despesas fixas pagas cujo novo vencimento já caiu no mês atual voltam a "não pago"
+// Despesas fixas pagas cuja nova provisão já chegou voltam a "não pago"
 export async function renovarPendentes() {
   const db = await getDb();
   await db.runAsync(
-    `UPDATE despesas SET pago = 0
+    `UPDATE despesas SET pago = 0, valor_pago = 0
      WHERE pago = 1
        AND fixa = 1
-       AND ((frequencia = 'mensal' AND vencimento < date('now', 'localtime', 'start of month', '+1 month'))
-         OR (frequencia != 'mensal' AND vencimento <= date('now', 'localtime')))`
+       AND ((frequencia = 'mensal' AND provisao < date('now', 'localtime', 'start of month', '+1 month'))
+         OR (frequencia != 'mensal' AND provisao <= date('now', 'localtime')))`
   );
 }
 
@@ -177,16 +256,40 @@ export async function totalDespesas(): Promise<number> {
   return r?.total ?? 0;
 }
 
-// Soma só das despesas já pagas: é o valor que sai do saldo disponível
+// Soma de todos os pagamentos lançados: inclui quitações parciais.
 export async function totalDespesasPagas(): Promise<number> {
   const db = await getDb();
   const r = await db.getFirstAsync<{ total: number | null }>(
-    "SELECT SUM(valor) AS total FROM despesas WHERE pago = 1"
+    "SELECT SUM(valor) AS total FROM pagamentos"
   );
   return r?.total ?? 0;
 }
 
 export async function excluirDespesa(id: number) {
   const db = await getDb();
-  await db.runAsync("DELETE FROM despesas WHERE id = ?", [id]);
+  const atual = await db.getFirstAsync<{ grupo_parcelas_id: number | null }>("SELECT grupo_parcelas_id FROM despesas WHERE id = ?", [id]);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM despesas WHERE id = ?", [id]);
+    if (atual?.grupo_parcelas_id) await ajustarGrupoParcelas(db, "despesas", atual.grupo_parcelas_id);
+  });
+}
+
+async function ajustarGrupoParcelas(db: Awaited<ReturnType<typeof getDb>>, tabela: "despesas" | "receitas", grupoId: number) {
+  const itens = await db.getAllAsync<{ id: number; valor: number }>(
+    `SELECT id, valor FROM ${tabela} WHERE grupo_parcelas_id = ? ORDER BY numero_parcela, id`, [grupoId]
+  );
+  if (itens.length === 0) {
+    await db.runAsync("DELETE FROM grupos_parcelas WHERE id = ?", [grupoId]);
+    return;
+  }
+  const total = itens.reduce((soma, item) => soma + item.valor, 0);
+  await db.runAsync("UPDATE grupos_parcelas SET quantidade = ?, valor_total = ? WHERE id = ?", [itens.length, total, grupoId]);
+  for (let indice = 0; indice < itens.length; indice++) {
+    await db.runAsync(`UPDATE ${tabela} SET numero_parcela = ?, parcelas = ? WHERE id = ?`, [indice + 1, itens.length, itens[indice].id]);
+  }
+}
+
+function dataHojeISO() {
+  const hoje = new Date();
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
 }

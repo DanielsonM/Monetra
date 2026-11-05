@@ -149,11 +149,11 @@ export default function Configuracao() {
 
   const resumo =
     `Você será avisado às ${horarios}` +
-    (config.diasAntes === 0
-      ? " no dia do vencimento"
-      : `, começando ${rotuloDias(config.diasAntes)} antes do vencimento`) +
-    (config.avisarAposVencer
-      ? ", e continuará sendo avisado todo dia depois de vencida, até pagar."
+    (config.diasAntesProvisao === 0
+      ? " no dia da provisão"
+      : `, começando ${rotuloDias(config.diasAntesProvisao)} antes da provisão`) +
+    (config.avisarAposProvisao
+      ? ", e continuará sendo avisado todo dia enquanto estiver atrasada, até pagar."
       : ".");
 
   return (
@@ -175,7 +175,7 @@ export default function Configuracao() {
           <View style={styles.cardTitulo}>
             <Ionicons name="notifications-outline" size={22} color="#6A1B9A" />
             <Text style={styles.cardTituloTexto}>
-              Notificações de vencimento
+              Notificações de provisão
             </Text>
           </View>
 
@@ -185,12 +185,12 @@ export default function Configuracao() {
               <Chip
                 key={n}
                 texto={rotuloDias(n)}
-                ativo={config.diasAntes === n}
-                onPress={() => mudar({ diasAntes: n })}
+                ativo={config.diasAntesProvisao === n}
+                onPress={() => mudar({ diasAntesProvisao: n })}
               />
             ))}
           </View>
-          <Text style={styles.dica}>antes do vencimento</Text>
+          <Text style={styles.dica}>antes da provisão</Text>
 
           <Text style={styles.label}>Repetir a cada</Text>
           <View style={styles.chips}>
@@ -226,16 +226,16 @@ export default function Configuracao() {
 
           <View style={styles.linhaSwitch}>
             <View style={styles.switchTextos}>
-              <Text style={styles.switchTitulo}>Continuar após vencer</Text>
+              <Text style={styles.switchTitulo}>Avisar enquanto estiver atrasada</Text>
               <Text style={styles.dica}>
                 Avisa todo dia enquanto a despesa não for paga
               </Text>
             </View>
             <Switch
-              value={config.avisarAposVencer}
-              onValueChange={(v) => mudar({ avisarAposVencer: v })}
+              value={config.avisarAposProvisao}
+              onValueChange={(v) => mudar({ avisarAposProvisao: v })}
               trackColor={{ true: "#A5D6A7", false: "#CCCCCC" }}
-              thumbColor={config.avisarAposVencer ? "#2E7D32" : "#F4F4F4"}
+              thumbColor={config.avisarAposProvisao ? "#2E7D32" : "#F4F4F4"}
             />
           </View>
         </View>
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Chave "continuar após vencer"
+  // Alternância para manter avisos após a data de provisão
   linhaSwitch: {
     flexDirection: "row",
     alignItems: "center",
