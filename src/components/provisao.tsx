@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import {
   type Despesa,
   listarDespesas,
@@ -54,6 +54,19 @@ const hojeISO = () => {
 const somar = (itens: { valor: number }[]) =>
   itens.reduce((soma, i) => soma + i.valor, 0);
 
+const chaveMes = (data: string) => data.slice(0, 7);
+const mesesProjetados = (quantidade: number) => {
+  const hoje = new Date();
+  return Array.from({ length: quantidade }, (_, indice) => {
+    const data = new Date(hoje.getFullYear(), hoje.getMonth() + indice, 1);
+    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}`;
+  });
+};
+const nomeMes = (chave: string) => {
+  const [ano, mes] = chave.split("-").map(Number);
+  return new Date(ano, mes - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+};
+
 type ProvisaoProps = {
   // Chamado depois de liquidar um item, para a Home atualizar os outros cards
   aoLiquidar?: () => void;
@@ -69,6 +82,7 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
   const [aba, setAba] = useState<Aba>("todas");
   const [verTodas, setVerTodas] = useState(false);
   const [aberto, setAberto] = useState(false); // começa fechado
+  const [larguraProjecao, setLarguraProjecao] = useState(0);
 
   const carregar = useCallback(async () => {
     try {
@@ -98,19 +112,22 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
   // Provisionado (ainda não liquidado)
   const receitasPendentes = receitas.filter((r) => r.recebido === 0);
   const despesasPendentes = despesas.filter((d) => d.pago === 0);
-  const aReceber = somar(receitasPendentes);
-  const aPagar = despesasPendentes.reduce((soma, d) => soma + Math.max(0, d.valor - (d.valor_pago ?? 0)), 0);
-
-  // Saldo projetado = caixa atual + a receber - a pagar
-  const saldoProjetado = caixaAtual + aReceber - aPagar;
+  // Saldo do mês atual carrega pendências vencidas; meses seguintes acumulam
+  // o fluxo previsto de cada mês sobre o saldo anterior.
+  const mesesFuturos = mesesProjetados(12);
+  let saldoAcumulado = caixaAtual;
+  const projecoes = mesesFuturos.map((mes) => {
+    const receber = receitasPendentes
+      .filter((r) => chaveMes(r.vencimento) === mes || chaveMes(r.vencimento) < mesesFuturos[0] && mes === mesesFuturos[0])
+      .reduce((total, r) => total + r.valor, 0);
+    const pagar = despesasPendentes
+      .filter((d) => chaveMes(d.provisao) === mes || chaveMes(d.provisao) < mesesFuturos[0] && mes === mesesFuturos[0])
+      .reduce((total, d) => total + Math.max(0, d.valor - (d.valor_pago ?? 0)), 0);
+    saldoAcumulado += receber - pagar;
+    return { mes, receber, pagar, saldo: saldoAcumulado };
+  });
+  const saldoProjetado = projecoes[0]?.saldo ?? caixaAtual;
   const projetadoNegativo = saldoProjetado < 0;
-
-  const receberVencidas = receitasPendentes.filter(
-    (r) => r.vencimento < hoje
-  ).length;
-  const despesasAtrasadas = despesasPendentes.filter(
-    (d) => d.provisao < hoje
-  ).length;
 
   // Lista unificada, da data prevista mais próxima (ou mais atrasada) à mais distante
   const itens: Item[] = [
@@ -232,40 +249,32 @@ export default function Provisao({ aoLiquidar }: ProvisaoProps) {
       {/* Relatório: realizado, provisionado e projeção */}
       <LinhaValor rotulo="Saldo em caixa" valor={caixaAtual} />
 
-      <LinhaValor
-        rotulo="(+) A receber"
-        valor={aReceber}
-        cor="#2E7D32"
-        detalhe={
-          receberVencidas > 0
-            ? `${receberVencidas} vencida${receberVencidas > 1 ? "s" : ""}`
-            : undefined
-        }
-      />
-
-      <LinhaValor
-        rotulo="(−) A pagar"
-        valor={aPagar}
-        cor="#D32F2F"
-        detalhe={
-          despesasAtrasadas > 0
-            ? `${despesasAtrasadas} atrasada${despesasAtrasadas > 1 ? "s" : ""}`
-            : undefined
-        }
-      />
-
       <View style={styles.divisor} />
 
-      <View style={styles.linhaProjetado}>
-        <Text style={styles.rotuloProjetado}>Saldo projetado</Text>
-        <Text
-          style={[
-            styles.valorProjetado,
-            { color: projetadoNegativo ? "#D32F2F" : "#2E7D32" },
-          ]}
+      <View onLayout={(evento) => setLarguraProjecao(evento.nativeEvent.layout.width)}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.projecoes}
         >
-          {formatarMoeda(saldoProjetado)}
-        </Text>
+          {projecoes.map((projecao) => (
+            <View key={projecao.mes} style={[styles.projecaoLinha, larguraProjecao > 0 && { width: larguraProjecao }]}>
+              <Text style={styles.rotuloProjetado}>Saldo projetado</Text>
+              <Text style={styles.projecaoMes}>{nomeMes(projecao.mes)}</Text>
+              <View style={styles.projecaoDetalheLinha}>
+                <Text style={styles.projecaoDetalheLabel}>A receber</Text>
+                <Text style={[styles.projecaoDetalheValor, { color: "#2E7D32" }]}>{formatarMoeda(projecao.receber)}</Text>
+              </View>
+              <View style={styles.projecaoDetalheLinha}>
+                <Text style={styles.projecaoDetalheLabel}>A pagar</Text>
+                <Text style={[styles.projecaoDetalheValor, { color: "#D32F2F" }]}>{formatarMoeda(projecao.pagar)}</Text>
+              </View>
+              <Text style={[styles.projecaoSaldo, { color: projecao.saldo < 0 ? "#D32F2F" : "#2E7D32" }]}>
+                {formatarMoeda(projecao.saldo)}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
       </View>
 
       {/* Pendências: tocar no botão da direita liquida o item */}
@@ -415,14 +424,14 @@ const styles = StyleSheet.create({
 
   divisor: { height: 1, backgroundColor: "#EEEEEE", marginVertical: 8 },
 
-  linhaProjetado: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 4,
-  },
-  rotuloProjetado: { fontSize: 16, fontWeight: "bold", color: "#1A1A1A" },
-  valorProjetado: { fontSize: 20, fontWeight: "bold" },
+  rotuloProjetado: { fontSize: 13, fontWeight: "600", color: "#666666", marginBottom: 3 },
+  projecoes: { gap: 10, paddingTop: 10, paddingRight: 4 },
+  projecaoLinha: { width: 176, minHeight: 138, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: "#F7F8FA" },
+  projecaoMes: { fontSize: 14, fontWeight: "600", color: "#333333", textTransform: "capitalize", marginBottom: 7 },
+  projecaoDetalheLinha: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  projecaoDetalheLabel: { fontSize: 12, color: "#666666" },
+  projecaoDetalheValor: { fontSize: 12, fontWeight: "600" },
+  projecaoSaldo: { fontSize: 16, fontWeight: "700", marginTop: 6 },
 
   // Abas da lista
   abas: { flexDirection: "row", gap: 8, marginTop: 16, marginBottom: 6 },

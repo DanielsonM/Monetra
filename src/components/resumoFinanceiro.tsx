@@ -1,137 +1,49 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { router } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { totalDespesas } from "../database/dbGestor/dbDespesas";
-import { totalReceitas } from "../database/dbGestor/dbReceitas";
-import InfoButton from "./infoButton";
 
-// Formata valores para Real brasileiro
-const formatarMoeda = (valor: number) =>
-  valor.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-
-// Card clicável: tocar no card abre a consulta; tocar no "+" abre o cadastro
-type CardResumoProps = {
-  titulo: string;
-  valor: number;
-  rotaConsulta: string;
-  rotaCadastro: string;
-  cor: string;
-};
-
-function CardResumo({
-  titulo,
-  valor,
-  rotaConsulta,
-  rotaCadastro,
-  cor,
-}: CardResumoProps) {
-  return (
-    <TouchableOpacity
-      style={styles.cardInfo}
-      activeOpacity={0.8}
-      onPress={() => router.push(rotaConsulta as never)}
-    >
-      <View style={styles.linhaTopo}>
-        <Text style={styles.label}>{titulo}</Text>
-        <InfoButton compacto titulo={titulo} texto={titulo === "Receitas totais" ? "Soma todas as receitas cadastradas, recebidas ou ainda a receber. Toque no card para consultar e no + para cadastrar uma receita." : "Soma todas as despesas cadastradas, pagas ou pendentes. Toque no card para consultar e no + para cadastrar uma despesa."} />
-
-        {/* Atalho para cadastrar um novo item */}
-        <TouchableOpacity
-          onPress={() => router.push(rotaCadastro as never)}
-          hitSlop={12}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="add-circle-outline" size={28} color={cor} />
-        </TouchableOpacity>
-      </View>
-
-      <Text style={styles.infoValor}>{formatarMoeda(valor)}</Text>
-    </TouchableOpacity>
-  );
-}
+const atalhos = [
+  { titulo: "Consultar receitas", rota: "/consultas/conReceitas", cor: "#00897B", icone: "trending-up-outline" as const },
+  { titulo: "Consultar despesas", rota: "/consultas/conDespesa", cor: "#D32F2F", icone: "trending-down-outline" as const },
+];
 
 export default function ResumoFinanceiro() {
-  const [receitasTotais, setReceitasTotais] = useState(0);
-  const [despesasTotais, setDespesasTotais] = useState(0);
-
-  // Atualiza os valores sempre que a tela volta a ficar em foco
-  useFocusEffect(
-    useCallback(() => {
-      let ativo = true;
-
-      Promise.all([totalReceitas(), totalDespesas()])
-        .then(([receitas, despesas]) => {
-          if (ativo) {
-            setReceitasTotais(receitas);
-            setDespesasTotais(despesas);
-          }
-        })
-        .catch((erro) => console.error(erro));
-
-      return () => {
-        ativo = false;
-      };
-    }, [])
-  );
-
   return (
-    <View>
-      <CardResumo
-        titulo="Receitas totais"
-        valor={receitasTotais}
-        rotaConsulta="/consultas/conReceitas"
-        rotaCadastro="/cadastros/cadReceita"
-        cor="#00897B"
-      />
-
-      <CardResumo
-        titulo="Despesas totais"
-        valor={despesasTotais}
-        rotaConsulta="/consultas/conDespesa"
-        rotaCadastro="/cadastros/cadDespesas"
-        cor="#D32F2F"
-      />
+    <View style={styles.container}>
+      {atalhos.map((atalho) => (
+        <TouchableOpacity
+          key={atalho.rota}
+          style={styles.card}
+          activeOpacity={0.75}
+          onPress={() => router.push(atalho.rota as never)}
+        >
+          <Ionicons name={atalho.icone} size={22} color={atalho.cor} />
+          <Text style={styles.texto}>{atalho.titulo}</Text>
+          <Ionicons name="chevron-forward" size={18} color="#777777" />
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Cards de informações
-  cardInfo: {
+  container: { flexDirection: "row", gap: 10, marginBottom: 15 },
+  card: {
+    flex: 1,
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 15,
-
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     shadowColor: "#000000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-
-  linhaTopo: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  label: {
-    fontSize: 16,
-    color: "#666666",
-  },
-
-  infoValor: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginTop: 8,
-    color: "#1A1A1A",
-  },
+  texto: { flex: 1, fontSize: 13, fontWeight: "600", color: "#333333" },
 });

@@ -143,11 +143,15 @@ export default function Historico() {
     if (novo) setMesSel(novo.mes);
   };
 
-  // Gráfico de barras dos últimos meses
-  const grafico = resumo.slice(-QTD_MESES_GRAFICO);
-  const maximo = Math.max(1, ...grafico.flatMap((m) => [m.entradas, m.gastos]));
+  // Evolução acumulada do fluxo líquido no período exibido.
+  const grafico = resumo.slice(-QTD_MESES_GRAFICO).reduce<(ResumoMes & { acumulado: number })[]>((lista, mes) => {
+    const anterior = lista[lista.length - 1]?.acumulado ?? 0;
+    lista.push({ ...mes, acumulado: anterior + mes.sobra });
+    return lista;
+  }, []);
+  const maximo = Math.max(1, ...grafico.map((m) => Math.abs(m.acumulado)));
   const alturaBarra = (valor: number) =>
-    valor <= 0 ? 0 : Math.max(3, (valor / maximo) * ALTURA_GRAFICO);
+    valor === 0 ? 0 : Math.max(3, (Math.abs(valor) / maximo) * ALTURA_GRAFICO);
 
   // Gastos por tipo no mês selecionado
   const totalTipos = porTipo.reduce((soma, t) => soma + t.total, 0);
@@ -262,20 +266,14 @@ export default function Historico() {
 
         {/* Gráfico dos últimos meses */}
         <View style={styles.card}>
-          <Text style={styles.cardTitulo}>Últimos {QTD_MESES_GRAFICO} meses</Text>
+          <Text style={styles.cardTitulo}>Crescimento acumulado · últimos {QTD_MESES_GRAFICO} meses</Text>
 
           <View style={styles.legenda}>
             <View style={styles.legendaItem}>
               <View
                 style={[styles.legendaCor, { backgroundColor: COR_ENTRADA }]}
               />
-              <Text style={styles.legendaTexto}>Entradas</Text>
-            </View>
-            <View style={styles.legendaItem}>
-              <View
-                style={[styles.legendaCor, { backgroundColor: COR_GASTO }]}
-              />
-              <Text style={styles.legendaTexto}>Gastos</Text>
+              <Text style={styles.legendaTexto}>Saldo acumulado</Text>
             </View>
           </View>
 
@@ -295,17 +293,8 @@ export default function Historico() {
                       style={[
                         styles.barra,
                         {
-                          height: alturaBarra(m.entradas),
-                          backgroundColor: COR_ENTRADA,
-                        },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.barra,
-                        {
-                          height: alturaBarra(m.gastos),
-                          backgroundColor: COR_GASTO,
+                          height: alturaBarra(m.acumulado),
+                          backgroundColor: m.acumulado >= 0 ? COR_ENTRADA : COR_GASTO,
                         },
                       ]}
                     />
@@ -319,10 +308,10 @@ export default function Historico() {
                   <Text
                     style={[
                       styles.colunaSobra,
-                      { color: m.sobra >= 0 ? COR_ENTRADA : COR_GASTO },
+                      { color: m.acumulado >= 0 ? COR_ENTRADA : COR_GASTO },
                     ]}
                   >
-                    {formatarSobra(m.sobra)}
+                    {formatarSobra(m.acumulado)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -330,8 +319,7 @@ export default function Historico() {
           </View>
 
           <Text style={styles.dica}>
-            O número abaixo de cada mês é quanto sobrou (+) ou faltou (-), em
-            reais. Toque em um mês para ver os detalhes.
+            O gráfico soma o resultado líquido de cada mês desde o início do período exibido. Toque em um mês para ver entradas e gastos registrados.
           </Text>
         </View>
 
