@@ -80,7 +80,7 @@ export async function excluirMeta(id: number) {
 
 export async function criarBackup(): Promise<string> {
   const db = await getDb();
-  const tabelas = ["despesas", "pagamentos", "grupos_parcelas", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"];
+  const tabelas = ["despesas", "pagamentos", "grupos_parcelas", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes", "tags"];
   const dados: Record<string, unknown[]> = {};
   for (const tabela of tabelas) dados[tabela] = await db.getAllAsync(`SELECT * FROM ${tabela}`);
   return JSON.stringify({ app: "Monetra", formato: 1, criadoEm: new Date().toISOString(), dados });
@@ -89,15 +89,15 @@ export async function criarBackup(): Promise<string> {
 export async function restaurarBackup(texto: string) {
   const backup = JSON.parse(texto) as { app?: string; formato?: number; dados?: Record<string, unknown[]> };
   if (backup.app !== "Monetra" || backup.formato !== 1 || !backup.dados) throw new Error("Arquivo de backup inválido.");
-  const tabelas = ["despesas", "pagamentos", "grupos_parcelas", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes"] as const;
+  const tabelas = ["despesas", "pagamentos", "grupos_parcelas", "bancos", "receitas", "aplicacoes", "saques_aplicacoes", "unificacoes", "orcamentos", "metas", "configuracoes", "tags"] as const;
   const tabelasObrigatorias = ["despesas", "pagamentos", "receitas", "orcamentos", "metas", "configuracoes"] as const;
   if (tabelasObrigatorias.some((tabela) => !Array.isArray(backup.dados?.[tabela]))) throw new Error("Arquivo de backup incompleto.");
   const db = await getDb();
   const colunas: Record<(typeof tabelas)[number], string[]> = {
-    despesas: ["id", "nome", "valor", "tipo", "provisao", "data_emissao", "pago", "observacao", "fixa", "frequencia", "parcelas", "numero_parcela", "grupo_parcelas_id", "valor_pago", "criado_em"],
+    despesas: ["id", "nome", "valor", "tipo", "provisao", "data_emissao", "pago", "observacao", "fixa", "frequencia", "parcelas", "numero_parcela", "grupo_parcelas_id", "valor_pago", "tags_ids", "criado_em"],
     pagamentos: ["id", "despesa_id", "nome", "tipo", "valor", "provisao", "data_pagamento"],
     grupos_parcelas: ["id", "natureza", "nome", "tipo", "valor_total", "quantidade", "modo_valor", "data_emissao", "criado_em"],
-    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "data_recebimento", "fixa", "parcelas", "banco_id", "grupo_parcelas_id", "numero_parcela", "criado_em"],
+    receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "data_recebimento", "fixa", "parcelas", "banco_id", "grupo_parcelas_id", "numero_parcela", "tags_ids", "criado_em"],
     bancos: ["id", "nome", "cor", "criado_em"],
     aplicacoes: ["id", "banco", "valor", "banco_id", "criado_em"],
     saques_aplicacoes: ["id", "aplicacao_id", "banco_id", "banco_nome", "banco_cor", "valor", "data", "receita_id", "criado_em"],
@@ -105,6 +105,7 @@ export async function restaurarBackup(texto: string) {
     orcamentos: ["tipo", "limite"],
     metas: ["id", "nome", "objetivo", "guardado", "prazo", "criado_em"],
     configuracoes: ["chave", "valor"],
+    tags: ["id", "nome", "criado_em"],
   };
   await db.withTransactionAsync(async () => {
     for (const tabela of tabelas) {

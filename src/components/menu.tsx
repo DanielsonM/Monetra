@@ -116,6 +116,11 @@ export default function Menu() {
                   <Text style={styles.submenuItem}>Despesas</Text>
                 </TouchableOpacity>
 
+                <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/tags")}>
+                  <IconeMenu nome="pricetag-outline" cor="#00897B" pequeno />
+                  <Text style={styles.submenuItem}>Tags</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity style={styles.submenuBotao} onPress={() => navegarPara("/cadastros/gastoRapido")}>
                   <IconeMenu nome="flash-outline" cor="#F57C00" pequeno />
                   <Text style={styles.submenuItem}>Gasto rápido</Text>

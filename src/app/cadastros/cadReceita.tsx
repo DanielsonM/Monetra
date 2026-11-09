@@ -30,6 +30,8 @@ import InfoButton from "../../components/infoButton";
 import { TIPO_RECEITA_SAQUE } from "../../database/dbGestor/dbAplicacoes";
 import { listarBancos, type Banco } from "../../database/dbGestor/dbBancos";
 import SeletorBanco from "../../components/seletorBanco";
+import SeletorTags from "../../components/seletorTags";
+import { lerTags } from "../../database/dbGestor/dbTags";
 
 // Edite as opções de tipo de receita aqui
 const TIPOS_RECEITA = [
@@ -112,6 +114,7 @@ export default function CadReceita() {
   const [fixa, setFixa] = useState(false);
   const [grupoParcelado, setGrupoParcelado] = useState(false);
   const [observacao, setObservacao] = useState("");
+  const [tagsIds, setTagsIds] = useState<number[]>([]);
   const [campoData, setCampoData] = useState<CampoData | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -163,6 +166,7 @@ export default function CadReceita() {
         setFixa(r.fixa === 1);
         setGrupoParcelado(Boolean(r.grupo_parcelas_id));
         setObservacao(r.observacao ?? "");
+        setTagsIds(lerTags(r.tags_ids));
       })
       .catch((erro) => {
         console.error(erro);
@@ -246,6 +250,7 @@ export default function CadReceita() {
       fixa: !utilizarParcelas && fixa,
       parcelas: parcelasNumero,
       bancoId,
+      tagsIds,
     };
 
     try {
@@ -398,6 +403,8 @@ export default function CadReceita() {
             />
           </TouchableOpacity>
         </View>
+
+        <SeletorTags selecionadas={tagsIds} onChange={setTagsIds} />
 
         <Text style={styles.label}>Previsão de recebimento</Text>
         <TouchableOpacity

@@ -21,7 +21,7 @@ import {
   type Despesa,
   excluirDespesa,
   listarDespesas,
-  pagarParcialDespesa,
+  registrarPagamentoDespesa,
   totalDespesasPagas,
 } from "../../database/dbGestor/dbDespesas";
 import { totalReceitasRecebidas } from "../../database/dbGestor/dbReceitas";
@@ -30,6 +30,7 @@ import InfoButton from "../../components/infoButton";
 import CardParcelamento from "../../components/cardParcelamento";
 import NavegadorMes, { chaveMesAtual } from "../../components/navegadorMes";
 import CardResumoRetratil from "../../components/cardResumoRetratil";
+import { listarTags, lerTags, type Tag } from "../../database/dbGestor/dbTags";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
@@ -42,6 +43,7 @@ type ItemListaDespesa =
 export default function ConDespesa() {
   const router = useRouter();
   const [despesas, setDespesas] = useState<Despesa[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [buscarNome, setBuscarNome] = useState(true);
@@ -52,6 +54,8 @@ export default function ConDespesa() {
   const [valorParcial, setValorParcial] = useState("");
   const [salvandoPagamento, setSalvandoPagamento] = useState(false);
   const [gruposAbertos, setGruposAbertos] = useState<Record<number, boolean>>({});
+  const [modoSelecao, setModoSelecao] = useState(false);
+  const [despesasSelecionadas, setDespesasSelecionadas] = useState<number[]>([]);
   const [mesSelecionado, setMesSelecionado] = useState(chaveMesAtual());
 
   useEffect(() => {
@@ -92,6 +96,9 @@ export default function ConDespesa() {
   const totalPago = despesasDoMes.reduce((soma, d) => soma + (d.pago ? d.valor : d.valor_pago ?? 0), 0);
   const totalPendente = despesasDoMes.reduce((soma, d) => soma + (d.pago ? 0 : Math.max(0, d.valor - (d.valor_pago ?? 0))), 0);
   const total = totalPago + totalPendente;
+  const totalSelecionado = despesasDoMes
+    .filter((despesa) => despesasSelecionadas.includes(despesa.id))
+    .reduce((soma, despesa) => soma + despesa.valor, 0);
   const totalBusca = despesasFiltradas.reduce((soma, d) => soma + d.valor, 0);
   const pesquisaAtiva = (buscarNome && Boolean(busca.trim())) || (buscarTipo && tipoSelecionado !== "Todos");
 
@@ -141,9 +148,17 @@ export default function ConDespesa() {
     } as never);
   };
 
+  const alternarSelecao = (despesa: Despesa) => {
+    setDespesasSelecionadas((selecionadas) => selecionadas.includes(despesa.id)
+      ? selecionadas.filter((id) => id !== despesa.id)
+      : [...selecionadas, despesa.id]);
+  };
+
   const carregar = useCallback(async () => {
     try {
-      setDespesas(await listarDespesas());
+      const [listaDespesas, listaTags] = await Promise.all([listarDespesas(), listarTags()]);
+      setDespesas(listaDespesas);
+      setTags(listaTags);
     } catch (erro) {
       console.error(erro);
       Alert.alert("Erro", "Não foi possível carregar as despesas.");
@@ -182,7 +197,7 @@ export default function ConDespesa() {
     );
   };
 
-  const iniciarPagamentoParcial = async (despesa: Despesa) => {
+  const iniciarPagamento = async (despesa: Despesa) => {
     try {
       const [entradas, saidas] = await Promise.all([
         totalReceitasRecebidas(),
@@ -190,7 +205,7 @@ export default function ConDespesa() {
       ]);
       const saldoDisponivel = entradas - saidas;
       if (saldoDisponivel <= 0.005) {
-        Alert.alert("Sem saldo disponível", "Não há saldo disponível para realizar um pagamento parcial.");
+        Alert.alert("Sem saldo disponível", "Não há saldo disponível para realizar o pagamento.");
         return;
       }
       setDespesaPagamento(despesa);
@@ -205,13 +220,16 @@ export default function ConDespesa() {
     <TouchableOpacity
       style={compacta ? styles.itemGrupo : styles.card}
       activeOpacity={0.8}
-      onPress={() => editar(item)}
+      onPress={() => modoSelecao ? alternarSelecao(item) : editar(item)}
+      accessibilityRole="button"
+      accessibilityState={modoSelecao ? { selected: despesasSelecionadas.includes(item.id) } : undefined}
     >
       <View style={styles.cardInfo}>
         <Text style={styles.nome}>{item.nome}</Text>
         <Text style={styles.detalhe}>
           {item.tipo} · Emissão {dataISOparaBR(item.data_emissao)} · Provisão {dataISOparaBR(item.provisao)}
         </Text>
+        {lerTags(item.tags_ids).length > 0 && <Text style={styles.detalheTags}>{lerTags(item.tags_ids).map((id) => tags.find((tag) => tag.id === id)?.nome).filter(Boolean).join(" · ")}</Text>}
         {item.grupo_parcelas_id && <Text style={styles.detalheParcela}>Parcela {item.numero_parcela} de {item.parcelas}</Text>}
         {!item.pago && (item.valor_pago ?? 0) > 0 && (
           <Text style={styles.detalhePago}>Pago {formatarMoeda(item.valor_pago)} · Restante {formatarMoeda(Math.max(0, item.valor - item.valor_pago))}</Text>
@@ -219,18 +237,21 @@ export default function ConDespesa() {
       </View>
 
       <View style={styles.cardDireita}>
+        {modoSelecao && <View style={styles.seletorDespesa}>
+          <Ionicons name={despesasSelecionadas.includes(item.id) ? "checkbox" : "square-outline"} size={24} color="#00897B" />
+        </View>}
         <Text style={styles.valor}>{formatarMoeda(item.pago ? item.valor : Math.max(0, item.valor - (item.valor_pago ?? 0)))}</Text>
         {!item.pago && Math.max(0, item.valor - (item.valor_pago ?? 0)) > 0.01 && (
           <TouchableOpacity
             style={styles.botaoParcial}
-            onPress={() => { void iniciarPagamentoParcial(item); }}
+            onPress={() => { void iniciarPagamento(item); }}
             hitSlop={8}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel={`Pagamento parcial de ${item.nome}`}
+            accessibilityLabel={`Pagar despesa ${item.nome}`}
           >
             <Ionicons name="cash-outline" size={17} color="#00897B" />
-            <Text style={styles.botaoParcialTexto}>Pagamento parcial</Text>
+            <Text style={styles.botaoParcialTexto}>Pagar</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -273,7 +294,7 @@ export default function ConDespesa() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Despesas</Text>
-        <InfoButton compacto titulo="Consulta de despesas" texto="Veja as despesas cadastradas, suas provisões e status de pagamento. Em despesas pendentes, use Pagamento parcial para registrar um valor menor que o restante; o app confere o saldo disponível e mantém a despesa pendente até a quitação. O botão + cria uma nova despesa. Em Unificar despesas não pagas, escolha a despesa que continuará e a que será somada. A operação fica em Históricos > Unificações." />
+        <InfoButton compacto titulo="Consulta de despesas" texto="Veja as despesas cadastradas, suas provisões e status de pagamento. Em despesas pendentes, use Pagar para registrar um valor parcial ou quitar o saldo restante; o app confere o saldo disponível e mantém a despesa pendente até a quitação. O botão + cria uma nova despesa. Em Unificar despesas não pagas, escolha a despesa que continuará e a que será somada. A operação fica em Históricos > Unificações." />
       </View>
 
       {/* Resumo mensal com navegação entre meses */}
@@ -303,6 +324,24 @@ export default function ConDespesa() {
       <View style={styles.linhaBusca}>
         <TextInput style={[styles.busca, !buscarNome && styles.buscaDesativada]} value={busca} onChangeText={setBusca} placeholder={placeholderBusca} editable={buscarNome} returnKeyType="search" accessibilityLabel={placeholderBusca} />
         {pesquisaAtiva && <View style={styles.somaBusca} accessibilityLabel={`Soma dos resultados: ${formatarMoeda(totalBusca)}`}><Text style={styles.somaBuscaLabel}>Soma</Text><Text style={styles.somaBuscaValor} numberOfLines={1} adjustsFontSizeToFit>{formatarMoeda(totalBusca)}</Text></View>}
+      </View>
+      <View style={styles.linhaSelecao}>
+        <TouchableOpacity
+          style={[styles.botaoSelecao, modoSelecao && styles.botaoSelecaoAtivo]}
+          onPress={() => {
+            setModoSelecao((ativo) => !ativo);
+            setDespesasSelecionadas([]);
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ selected: modoSelecao }}
+        >
+          <Ionicons name={modoSelecao ? "close-circle-outline" : "checkbox-outline"} size={18} color={modoSelecao ? "#FFFFFF" : "#00796B"} />
+          <Text style={[styles.botaoSelecaoTexto, modoSelecao && styles.botaoSelecaoTextoAtivo]}>{modoSelecao ? "Concluir seleção" : "Selecionar despesas"}</Text>
+        </TouchableOpacity>
+        {modoSelecao && <View style={styles.totalSelecionado} accessibilityLabel={`Total selecionado: ${formatarMoeda(totalSelecionado)}`}>
+          <Text style={styles.totalSelecionadoLabel}>{despesasDoMes.filter((despesa) => despesasSelecionadas.includes(despesa.id)).length} selecionada(s)</Text>
+          <Text style={styles.totalSelecionadoValor}>{formatarMoeda(totalSelecionado)}</Text>
+        </View>}
       </View>
       <View style={styles.opcoesBusca}>
         <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) { setBuscarTipo(false); setTiposAbertos(false); } setBusca(""); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
@@ -339,9 +378,15 @@ export default function ConDespesa() {
         <KeyboardAvoidingView style={styles.modalFundo} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setDespesaPagamento(null)} />
           <View style={styles.modalCartao}>
-            <Text style={styles.modalTitulo}>Pagamento parcial</Text>
+            <Text style={styles.modalTitulo}>Pagar despesa</Text>
             <Text style={styles.modalDescricao} numberOfLines={2}>{despesaPagamento?.nome}</Text>
             <Text style={styles.modalPendente}>Saldo pendente: {formatarMoeda(Math.max(0, (despesaPagamento?.valor ?? 0) - (despesaPagamento?.valor_pago ?? 0)))}</Text>
+            <TouchableOpacity style={styles.botaoValorTotal} onPress={() => {
+              const pendente = Math.max(0, (despesaPagamento?.valor ?? 0) - (despesaPagamento?.valor_pago ?? 0));
+              setValorParcial(formatarEntradaMoeda(String(Math.round(pendente * 100))));
+            }} accessibilityRole="button" accessibilityLabel="Preencher o saldo total pendente">
+              <Text style={styles.botaoValorTotalTexto}>Preencher saldo total</Text>
+            </TouchableOpacity>
             <Text style={styles.modalLabel}>Valor a pagar</Text>
             <TextInput
               style={styles.modalInput}
@@ -361,7 +406,7 @@ export default function ConDespesa() {
                 const valor = numeroMoeda(valorParcial);
                 try {
                   setSalvandoPagamento(true);
-                  await pagarParcialDespesa(despesaPagamento.id, valor);
+                  await registrarPagamentoDespesa(despesaPagamento.id, valor);
                   setDespesaPagamento(null);
                   await carregar();
                 } catch (erro) {
@@ -393,6 +438,14 @@ const styles = StyleSheet.create({
   },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1A1A1A" },
   linhaBusca: { flexDirection: "row", alignItems: "stretch", gap: 8, marginBottom: 12 },
+  linhaSelecao: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 },
+  botaoSelecao: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "#E0F2F1" },
+  botaoSelecaoAtivo: { backgroundColor: "#00897B" },
+  botaoSelecaoTexto: { color: "#00796B", fontSize: 13, fontWeight: "600" },
+  botaoSelecaoTextoAtivo: { color: "#FFFFFF" },
+  totalSelecionado: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, backgroundColor: "#FFFFFF", borderRadius: 10, paddingHorizontal: 12, minHeight: 40 },
+  totalSelecionadoLabel: { color: "#666666", fontSize: 12 },
+  totalSelecionadoValor: { color: "#1A1A1A", fontSize: 15, fontWeight: "bold" },
   busca: { flex: 1, minWidth: 0, backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A1A" },
   buscaDesativada: { color: "#888888" },
   somaBusca: { width: 124, justifyContent: "center", backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: "#E0E0E0" },
@@ -462,11 +515,13 @@ const styles = StyleSheet.create({
   nome: { fontSize: 17, fontWeight: "bold", color: "#1A1A1A" },
   detalhe: { fontSize: 13, color: "#666666", marginTop: 4 },
   cardDireita: { alignItems: "flex-end", gap: 10 },
+  seletorDespesa: { padding: 2 },
   itemGrupo: { paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E7E7E7", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   valor: { fontSize: 17, fontWeight: "bold", color: "#1A1A1A" },
   botaoParcial: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#E0F2F1", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
   botaoParcialTexto: { color: "#00796B", fontSize: 11, fontWeight: "bold" },
   detalhePago: { fontSize: 11, color: "#777777", marginTop: 4 },
+  detalheTags: { fontSize: 12, color: "#00796B", marginTop: 4 },
   detalheParcela: { fontSize: 12, color: "#00897B", fontWeight: "600", marginTop: 3 },
 
   modalFundo: { flex: 1, backgroundColor: "rgba(0,0,0,0.42)", justifyContent: "center", padding: 22 },
@@ -474,6 +529,8 @@ const styles = StyleSheet.create({
   modalTitulo: { fontSize: 20, fontWeight: "bold", color: "#1A1A1A" },
   modalDescricao: { fontSize: 15, color: "#555555", marginTop: 7 },
   modalPendente: { fontSize: 14, fontWeight: "600", color: "#D32F2F", marginTop: 12 },
+  botaoValorTotal: { alignSelf: "flex-start", marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "#E0F2F1" },
+  botaoValorTotalTexto: { color: "#00796B", fontSize: 13, fontWeight: "600" },
   modalLabel: { fontSize: 13, color: "#666666", marginTop: 16, marginBottom: 6 },
   modalInput: { backgroundColor: "#F7F7F7", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 18, color: "#1A1A1A" },
   modalAjuda: { fontSize: 12, lineHeight: 17, color: "#777777", marginTop: 9 },

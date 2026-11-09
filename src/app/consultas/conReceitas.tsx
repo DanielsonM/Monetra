@@ -26,6 +26,7 @@ import { ModalSeletorBanco } from "../../components/seletorBanco";
 import CardParcelamento from "../../components/cardParcelamento";
 import NavegadorMes, { chaveMesAtual } from "../../components/navegadorMes";
 import CardResumoRetratil from "../../components/cardResumoRetratil";
+import { listarTags, lerTags, type Tag } from "../../database/dbGestor/dbTags";
 
 // Situação de cada receita:
 // - recebida: já foi recebida (entra no saldo disponível)
@@ -85,6 +86,7 @@ export default function ConReceita() {
   const router = useRouter();
 
   const [receitas, setReceitas] = useState<Receita[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [busca, setBusca] = useState("");
@@ -95,6 +97,8 @@ export default function ConReceita() {
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [receitaParaReceber, setReceitaParaReceber] = useState<Receita | null>(null);
   const [gruposAbertos, setGruposAbertos] = useState<Record<number, boolean>>({});
+  const [modoSelecao, setModoSelecao] = useState(false);
+  const [receitasSelecionadas, setReceitasSelecionadas] = useState<number[]>([]);
   const [mesSelecionado, setMesSelecionado] = useState(chaveMesAtual());
 
   const hoje = hojeISO();
@@ -115,6 +119,9 @@ export default function ConReceita() {
   const totalRecebido = receitasDoMes.reduce((soma, r) => r.recebido === 1 ? soma + r.valor : soma, 0);
   const totalAReceber = receitasDoMes.reduce((soma, r) => r.recebido === 0 ? soma + r.valor : soma, 0);
   const total = totalRecebido + totalAReceber;
+  const totalSelecionado = receitasDoMes
+    .filter((receita) => receitasSelecionadas.includes(receita.id))
+    .reduce((soma, receita) => soma + receita.valor, 0);
 
   // Quantidade de receitas em cada filtro
   const contagem: Record<Filtro, number> = {
@@ -205,11 +212,18 @@ export default function ConReceita() {
     } as never);
   };
 
+  const alternarSelecao = (receita: Receita) => {
+    setReceitasSelecionadas((selecionadas) => selecionadas.includes(receita.id)
+      ? selecionadas.filter((id) => id !== receita.id)
+      : [...selecionadas, receita.id]);
+  };
+
   const carregar = useCallback(async () => {
     try {
-      const [listaReceitas, listaBancos] = await Promise.all([listarReceitas(), listarBancos()]);
+      const [listaReceitas, listaBancos, listaTags] = await Promise.all([listarReceitas(), listarBancos(), listarTags()]);
       setReceitas(listaReceitas);
       setBancos(listaBancos);
+      setTags(listaTags);
     } catch (erro) {
       console.error(erro);
       Alert.alert("Erro", "Não foi possível carregar as receitas.");
@@ -279,11 +293,14 @@ export default function ConReceita() {
       <TouchableOpacity
         style={compacta ? styles.itemGrupo : styles.card}
         activeOpacity={0.8}
-        onPress={() => editar(item)}
+        onPress={() => modoSelecao ? alternarSelecao(item) : editar(item)}
+        accessibilityRole="button"
+        accessibilityState={modoSelecao ? { selected: receitasSelecionadas.includes(item.id) } : undefined}
       >
         <View style={styles.cardInfo}>
           <Text style={styles.nome}>{item.nome}</Text>
           <Text style={styles.detalhe}>{item.tipo}</Text>
+          {lerTags(item.tags_ids).length > 0 && <Text style={styles.detalheTags}>{lerTags(item.tags_ids).map((id) => tags.find((tag) => tag.id === id)?.nome).filter(Boolean).join(" · ")}</Text>}
           <Text style={styles.detalhe}>
             Entrada: {dataISOparaBR(item.data)} · Venc.:{" "}
             {dataISOparaBR(item.vencimento)}
@@ -309,6 +326,9 @@ export default function ConReceita() {
         </View>
 
         <View style={styles.cardDireita}>
+          {modoSelecao && <View style={styles.seletorReceita}>
+            <Ionicons name={receitasSelecionadas.includes(item.id) ? "checkbox" : "square-outline"} size={24} color="#00897B" />
+          </View>}
           <Text style={styles.valor}>{formatarReal(item.valor)}</Text>
           {status !== "recebida" && (
             <TouchableOpacity
@@ -421,6 +441,24 @@ export default function ConReceita() {
         <TextInput style={[styles.busca, !buscarNome && styles.buscaDesativada]} value={busca} onChangeText={setBusca} placeholder={placeholderBusca} editable={buscarNome} returnKeyType="search" accessibilityLabel={placeholderBusca} />
         {pesquisaAtiva && <View style={styles.somaBusca} accessibilityLabel={`Soma dos resultados: ${formatarReal(totalFiltrado)}`}><Text style={styles.somaBuscaLabel}>Soma</Text><Text style={styles.somaBuscaValor} numberOfLines={1} adjustsFontSizeToFit>{formatarReal(totalFiltrado)}</Text></View>}
       </View>
+      <View style={styles.linhaSelecao}>
+        <TouchableOpacity
+          style={[styles.botaoSelecao, modoSelecao && styles.botaoSelecaoAtivo]}
+          onPress={() => {
+            setModoSelecao((ativo) => !ativo);
+            setReceitasSelecionadas([]);
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ selected: modoSelecao }}
+        >
+          <Ionicons name={modoSelecao ? "close-circle-outline" : "checkbox-outline"} size={18} color={modoSelecao ? "#FFFFFF" : "#00796B"} />
+          <Text style={[styles.botaoSelecaoTexto, modoSelecao && styles.botaoSelecaoTextoAtivo]}>{modoSelecao ? "Concluir seleção" : "Selecionar receitas"}</Text>
+        </TouchableOpacity>
+        {modoSelecao && <View style={styles.totalSelecionado} accessibilityLabel={`Total selecionado: ${formatarReal(totalSelecionado)}`}>
+          <Text style={styles.totalSelecionadoLabel}>{receitasDoMes.filter((receita) => receitasSelecionadas.includes(receita.id)).length} selecionada(s)</Text>
+          <Text style={styles.totalSelecionadoValor}>{formatarReal(totalSelecionado)}</Text>
+        </View>}
+      </View>
       <View style={styles.opcoesBusca}>
         <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) { setBuscarTipo(false); setTiposAbertos(false); } setBusca(""); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
         <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Tipo</Text><Switch value={buscarTipo} onValueChange={(ativo) => { setBuscarTipo(ativo); if (ativo) { setBuscarNome(false); setTipoSelecionado("Todos"); } setBusca(""); setTiposAbertos(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarTipo ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por tipo" /></View>
@@ -483,6 +521,14 @@ const styles = StyleSheet.create({
   },
   titulo: { fontSize: 28, fontWeight: "bold", color: "#1A1A1A" },
   linhaBusca: { flexDirection: "row", alignItems: "stretch", gap: 8, marginBottom: 12 },
+  linhaSelecao: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 },
+  botaoSelecao: { minHeight: 40, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "#E0F2F1" },
+  botaoSelecaoAtivo: { backgroundColor: "#00897B" },
+  botaoSelecaoTexto: { color: "#00796B", fontSize: 13, fontWeight: "600" },
+  botaoSelecaoTextoAtivo: { color: "#FFFFFF" },
+  totalSelecionado: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, backgroundColor: "#FFFFFF", borderRadius: 10, paddingHorizontal: 12, minHeight: 40 },
+  totalSelecionadoLabel: { color: "#666666", fontSize: 12 },
+  totalSelecionadoValor: { color: "#1A1A1A", fontSize: 15, fontWeight: "bold" },
   busca: { flex: 1, minWidth: 0, backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, color: "#1A1A1A" },
   buscaDesativada: { color: "#888888" },
   somaBusca: { width: 124, justifyContent: "center", backgroundColor: "#FFFFFF", borderRadius: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: "#E0E0E0" },
@@ -582,12 +628,14 @@ const styles = StyleSheet.create({
   cardInfo: { flex: 1, marginRight: 12 },
   nome: { fontSize: 17, fontWeight: "bold", color: "#1A1A1A" },
   detalhe: { fontSize: 13, color: "#666666", marginTop: 4 },
+  detalheTags: { fontSize: 12, color: "#00796B", marginTop: 4 },
   observacao: { fontSize: 12, color: "#999999", marginTop: 2 },
   status: { fontSize: 12, fontWeight: "bold", marginTop: 4 },
   statusRecebido: { color: "#2E7D32" },
   statusPendente: { color: "#F57C00" },
   statusVencida: { color: "#D32F2F" },
   cardDireita: { alignItems: "flex-end", gap: 10 },
+  seletorReceita: { padding: 2 },
   itemGrupo: { paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E7E7E7", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   detalheParcela: { fontSize: 12, color: "#00897B", fontWeight: "600", marginTop: 3 },
   valor: { fontSize: 17, fontWeight: "bold", color: "#2E7D32" },

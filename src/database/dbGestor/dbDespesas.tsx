@@ -18,6 +18,7 @@ export type Despesa = {
   numero_parcela: number;
   grupo_parcelas_id: number | null;
   valor_pago: number;
+  tags_ids: string;
   criado_em: string;
 };
 
@@ -31,12 +32,13 @@ export type DadosNovaDespesa = {
   fixa?: boolean;
   frequencia?: "semanal" | "mensal" | "anual";
   parcelas?: number;
+  tagsIds?: number[];
 };
 
 export async function inserirDespesa(d: DadosNovaDespesa) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO despesas (nome, valor, tipo, provisao, data_emissao, observacao, fixa, frequencia, parcelas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO despesas (nome, valor, tipo, provisao, data_emissao, observacao, fixa, frequencia, parcelas, tags_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [
       d.nome,
       d.valor,
@@ -47,6 +49,7 @@ export async function inserirDespesa(d: DadosNovaDespesa) {
       d.fixa ? 1 : 0,
       d.frequencia ?? "mensal",
       d.parcelas ?? 1,
+      JSON.stringify(d.tagsIds ?? []),
     ]
   );
   return r.lastInsertRowId;
@@ -71,8 +74,8 @@ export async function inserirDespesasParceladas(
     );
     for (let indice = 0; indice < quantidade; indice++) {
       const resultado = await db.runAsync(
-        `INSERT INTO despesas (nome, valor, tipo, provisao, data_emissao, observacao, fixa, frequencia, parcelas, numero_parcela, grupo_parcelas_id)
-         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+        `INSERT INTO despesas (nome, valor, tipo, provisao, data_emissao, observacao, fixa, frequencia, parcelas, numero_parcela, grupo_parcelas_id, tags_ids)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
         [
           d.nome,
           valores[indice],
@@ -84,6 +87,7 @@ export async function inserirDespesasParceladas(
           quantidade,
           indice + 1,
           grupo.lastInsertRowId,
+          JSON.stringify(d.tagsIds ?? []),
         ]
       );
       if (indice === 0) primeiraDespesaId = resultado.lastInsertRowId;
@@ -121,17 +125,18 @@ export async function atualizarDespesa(
     fixa?: boolean;
     frequencia?: "semanal" | "mensal" | "anual";
     parcelas?: number;
+    tagsIds?: number[];
   }
 ) {
   const db = await getDb();
   const atual = await db.getFirstAsync<{ grupo_parcelas_id: number | null }>("SELECT grupo_parcelas_id FROM despesas WHERE id = ?", [id]);
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, provisao = ?, data_emissao = ?, observacao = ?, fixa = ?, frequencia = ?, parcelas = ? WHERE id = ?",
-      [d.nome, d.valor, d.tipo, d.provisao, d.data_emissao ?? dataHojeISO(), d.observacao?.trim() || null, d.fixa ? 1 : 0, d.frequencia ?? "mensal", d.parcelas ?? 1, id]
+      "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, provisao = ?, data_emissao = ?, observacao = ?, fixa = ?, frequencia = ?, parcelas = ?, tags_ids = ? WHERE id = ?",
+      [d.nome, d.valor, d.tipo, d.provisao, d.data_emissao ?? dataHojeISO(), d.observacao?.trim() || null, d.fixa ? 1 : 0, d.frequencia ?? "mensal", d.parcelas ?? 1, JSON.stringify(d.tagsIds ?? []), id]
     );
     if (atual?.grupo_parcelas_id) {
-      await db.runAsync("UPDATE despesas SET nome = ?, tipo = ?, data_emissao = ? WHERE grupo_parcelas_id = ?", [d.nome, d.tipo, d.data_emissao ?? dataHojeISO(), atual.grupo_parcelas_id]);
+      await db.runAsync("UPDATE despesas SET nome = ?, tipo = ?, data_emissao = ?, tags_ids = ? WHERE grupo_parcelas_id = ?", [d.nome, d.tipo, d.data_emissao ?? dataHojeISO(), JSON.stringify(d.tagsIds ?? []), atual.grupo_parcelas_id]);
       const total = await db.getFirstAsync<{ total: number | null }>("SELECT SUM(valor) AS total FROM despesas WHERE grupo_parcelas_id = ?", [atual.grupo_parcelas_id]);
       await db.runAsync("UPDATE grupos_parcelas SET nome = ?, tipo = ?, valor_total = ? WHERE id = ?", [d.nome, d.tipo, total?.total ?? d.valor, atual.grupo_parcelas_id]);
     }
@@ -164,14 +169,14 @@ export async function pagarDespesa(id: number) {
   await registrarPagamento(id, Math.max(0, d.valor - (d.valor_pago ?? 0)));
 }
 
-// Lança um pagamento parcial, abatendo o valor pendente sem fechar a despesa.
-export async function pagarParcialDespesa(id: number, valor: number) {
+// Registra um pagamento parcial ou a quitação do saldo pendente.
+export async function registrarPagamentoDespesa(id: number, valor: number) {
   const db = await getDb();
   const d = await db.getFirstAsync<Despesa>("SELECT * FROM despesas WHERE id = ?", [id]);
   if (!d || d.pago) throw new Error("Esta despesa não está pendente.");
   const pendente = Math.max(0, d.valor - (d.valor_pago ?? 0));
-  if (!Number.isFinite(valor) || valor <= 0 || valor >= pendente) {
-    throw new Error("Informe um valor maior que zero e menor que o saldo pendente.");
+  if (!Number.isFinite(valor) || valor <= 0 || valor > pendente + 0.005) {
+    throw new Error("Informe um valor maior que zero e igual ou menor que o saldo pendente.");
   }
   const [entradas, saidas] = await Promise.all([
     totalReceitasRecebidas(),
@@ -180,7 +185,7 @@ export async function pagarParcialDespesa(id: number, valor: number) {
   if (valor > Math.max(0, entradas - saidas) + 0.005) {
     throw new Error("Saldo disponível insuficiente para realizar este pagamento.");
   }
-  await registrarPagamento(id, valor);
+  await registrarPagamento(id, Math.min(valor, pendente));
 }
 
 async function registrarPagamento(id: number, valor: number) {

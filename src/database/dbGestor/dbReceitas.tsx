@@ -19,6 +19,7 @@ export type Receita = {
   banco_nome?: string | null;
   banco_cor?: string | null;
   criado_em: string;
+  tags_ids: string;
 };
 
 export type DadosReceita = {
@@ -32,12 +33,13 @@ export type DadosReceita = {
   fixa?: boolean;
   parcelas?: number;
   bancoId?: number | null;
+  tagsIds?: number[];
 };
 
 export async function inserirReceita(d: DadosReceita) {
   const db = await getDb();
   const r = await db.runAsync(
-    "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, data_recebimento, fixa, parcelas, numero_parcela, banco_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)",
+    "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, data_recebimento, fixa, parcelas, numero_parcela, banco_id, tags_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
     [
       d.nome,
       d.valor,
@@ -50,6 +52,7 @@ export async function inserirReceita(d: DadosReceita) {
       d.fixa ? 1 : 0,
       d.parcelas ?? 1,
       d.recebido ? d.bancoId ?? null : null,
+      JSON.stringify(d.tagsIds ?? []),
     ]
   );
   return r.lastInsertRowId;
@@ -74,8 +77,8 @@ export async function inserirReceitasParceladas(
     );
     for (let indice = 0; indice < quantidade; indice++) {
       const resultado = await db.runAsync(
-        `INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, data_recebimento, fixa, parcelas, banco_id, grupo_parcelas_id, numero_parcela)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+        `INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, data_recebimento, fixa, parcelas, banco_id, grupo_parcelas_id, numero_parcela, tags_ids)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
         [
           d.nome,
           valores[indice],
@@ -89,6 +92,7 @@ export async function inserirReceitasParceladas(
           indice === 0 && d.recebido ? d.bancoId ?? null : null,
           grupo.lastInsertRowId,
           indice + 1,
+          JSON.stringify(d.tagsIds ?? []),
         ]
       );
       if (indice === 0) primeiraReceitaId = resultado.lastInsertRowId;
@@ -118,11 +122,11 @@ export async function atualizarReceita(id: number, d: DadosReceita) {
   const atual = await db.getFirstAsync<{ grupo_parcelas_id: number | null }>("SELECT grupo_parcelas_id FROM receitas WHERE id = ?", [id]);
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ?, data_recebimento = CASE WHEN ? = 1 THEN COALESCE(data_recebimento, ?) ELSE NULL END, fixa = ?, parcelas = ?, banco_id = ? WHERE id = ?",
-      [d.nome, d.valor, d.tipo, d.data, d.vencimento, d.observacao?.trim() || null, d.recebido ? 1 : 0, d.recebido ? 1 : 0, dataHojeISO(), d.fixa ? 1 : 0, d.parcelas ?? 1, d.recebido ? d.bancoId ?? null : null, id]
+      "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ?, data_recebimento = CASE WHEN ? = 1 THEN COALESCE(data_recebimento, ?) ELSE NULL END, fixa = ?, parcelas = ?, banco_id = ?, tags_ids = ? WHERE id = ?",
+      [d.nome, d.valor, d.tipo, d.data, d.vencimento, d.observacao?.trim() || null, d.recebido ? 1 : 0, d.recebido ? 1 : 0, dataHojeISO(), d.fixa ? 1 : 0, d.parcelas ?? 1, d.recebido ? d.bancoId ?? null : null, JSON.stringify(d.tagsIds ?? []), id]
     );
     if (atual?.grupo_parcelas_id) {
-      await db.runAsync("UPDATE receitas SET nome = ?, tipo = ?, data = ? WHERE grupo_parcelas_id = ?", [d.nome, d.tipo, d.data, atual.grupo_parcelas_id]);
+      await db.runAsync("UPDATE receitas SET nome = ?, tipo = ?, data = ?, tags_ids = ? WHERE grupo_parcelas_id = ?", [d.nome, d.tipo, d.data, JSON.stringify(d.tagsIds ?? []), atual.grupo_parcelas_id]);
       const total = await db.getFirstAsync<{ total: number | null }>("SELECT SUM(valor) AS total FROM receitas WHERE grupo_parcelas_id = ?", [atual.grupo_parcelas_id]);
       await db.runAsync("UPDATE grupos_parcelas SET nome = ?, tipo = ?, valor_total = ? WHERE id = ?", [d.nome, d.tipo, total?.total ?? d.valor, atual.grupo_parcelas_id]);
     }

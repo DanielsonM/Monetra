@@ -29,6 +29,8 @@ import {
 import { type ModoValorParcelas } from "../../database/dbGestor/dbParcelamentos";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
 import InfoButton from "../../components/infoButton";
+import SeletorTags from "../../components/seletorTags";
+import { lerTags } from "../../database/dbGestor/dbTags";
 
 // Edite as opções do combobox aqui
 const TIPOS = [
@@ -123,6 +125,7 @@ export default function CadDespesas() {
   const [vencimento, setVencimento] = useState<Date | null>(editando ? null : dataHoje);
   const [dataEmissao, setDataEmissao] = useState<Date | null>(editando ? null : dataHoje);
   const [observacao, setObservacao] = useState("");
+  const [tagsIds, setTagsIds] = useState<number[]>([]);
   const [jaPaga, setJaPaga] = useState(false);
   const [fixa, setFixa] = useState(false);
   const [grupoParcelado, setGrupoParcelado] = useState(false);
@@ -166,6 +169,7 @@ export default function CadDespesas() {
         setVencimento(isoParaDate(d.provisao));
         setDataEmissao(isoParaDate(d.data_emissao));
         setObservacao(d.observacao ?? "");
+        setTagsIds(lerTags(d.tags_ids));
         setFixa(d.fixa === 1);
         setFrequencia(d.frequencia ?? "mensal");
         setGrupoParcelado(Boolean(d.grupo_parcelas_id));
@@ -230,6 +234,7 @@ export default function CadDespesas() {
       fixa: !utilizarParcelas && fixa,
       frequencia,
       parcelas: parcelasNumero,
+      tagsIds,
     };
 
     try {
@@ -398,6 +403,8 @@ export default function CadDespesas() {
           />
         </TouchableOpacity>
       </View>
+
+      <SeletorTags selecionadas={tagsIds} onChange={setTagsIds} />
 
       <Text style={styles.label}>Data de emissão</Text>
       <TouchableOpacity style={styles.combo} onPress={() => setCampoData("emissao")} activeOpacity={0.7}>
