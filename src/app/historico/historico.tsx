@@ -153,7 +153,7 @@ export default function Historico() {
   const alturaBarra = (valor: number) =>
     valor === 0 ? 0 : Math.max(3, (Math.abs(valor) / maximo) * ALTURA_GRAFICO);
 
-  // Gastos por tipo no mês selecionado
+  // Gastos divididos entre as tags associadas no mês selecionado
   const totalTipos = porTipo.reduce((soma, t) => soma + t.total, 0);
   const maxTipo = Math.max(1, ...porTipo.map((t) => t.total));
 
@@ -170,7 +170,7 @@ export default function Historico() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Histórico financeiro</Text>
-        <InfoButton compacto titulo="Histórico financeiro" texto="Consulte entradas e pagamentos registrados por mês. Use as setas ou toque nas barras para escolher um mês e veja os gastos divididos por tipo. Este histórico registra recebimentos e pagamentos; para consultar operações de unificação, volte a Históricos e abra Unificações." />
+        <InfoButton compacto titulo="Histórico financeiro" texto="Consulte entradas e pagamentos registrados por mês. Use as setas ou toque nas barras para escolher um mês e veja os gastos divididos entre as tags associadas. Este histórico registra recebimentos e pagamentos; para consultar operações de unificação, volte a Históricos e abra Unificações." />
       </View>
 
       <ScrollView
@@ -323,10 +323,10 @@ export default function Historico() {
           </Text>
         </View>
 
-        {/* Gastos por tipo no mês selecionado */}
+        {/* Gastos agrupados pelas tags no mês selecionado */}
         <View style={styles.card}>
           <Text style={styles.cardTitulo}>
-            Gastos por tipo · {rotuloCurto(mesSel)}
+            Gastos por tag · {rotuloCurto(mesSel)}
           </Text>
 
           {porTipo.length === 0 && (
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
 
   dica: { fontSize: 12, color: "#888888", marginTop: 12 },
 
-  // Gastos por tipo
+  // Gastos por tag
   tipoLinha: { marginTop: 14 },
   tipoTopo: {
     flexDirection: "row",

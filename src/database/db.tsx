@@ -64,6 +64,7 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
       tipo TEXT NOT NULL,
       valor REAL NOT NULL,
       provisao TEXT NOT NULL,
+      tags_ids TEXT NOT NULL DEFAULT '[]',
       data_pagamento TEXT NOT NULL DEFAULT (date('now', 'localtime'))
     );
 
@@ -228,6 +229,10 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
     });
   }
 
+  if (!colunasPagamentos.some((c) => c.name === "tags_ids")) {
+    await db.execAsync("ALTER TABLE pagamentos ADD COLUMN tags_ids TEXT NOT NULL DEFAULT '[]';");
+  }
+
   // Migrações da tabela de receitas
   const colunasReceitas = await db.getAllAsync<{ name: string }>(
     "PRAGMA table_info(receitas)"
@@ -303,6 +308,62 @@ async function criarTabelas(db: SQLite.SQLiteDatabase) {
     WHERE banco_id IS NULL;
   `);
 
+  await migrarTiposLegadosParaTags(db);
+
+}
+
+// Converte os tipos antigos de despesas e receitas em tags para preservar a classificação.
+export async function migrarTiposLegadosParaTags(db: SQLite.SQLiteDatabase) {
+  const despesasLegadas = await db.getAllAsync<{ id: number; tipo: string; tags_ids: string }>(
+    "SELECT id, tipo, tags_ids FROM despesas WHERE TRIM(tipo) <> ''"
+  );
+  const pagamentosLegados = await db.getAllAsync<{ id: number; despesa_id: number | null; tipo: string; tags_ids: string }>(
+    "SELECT id, despesa_id, tipo, tags_ids FROM pagamentos WHERE TRIM(tipo) <> ''"
+  );
+  const receitasLegadas = await db.getAllAsync<{ id: number; tipo: string; tags_ids: string }>(
+    "SELECT id, tipo, tags_ids FROM receitas WHERE TRIM(tipo) <> ''"
+  );
+  await db.withTransactionAsync(async () => {
+    for (const despesa of despesasLegadas) {
+      await db.runAsync("INSERT OR IGNORE INTO tags (nome) VALUES (?)", [despesa.tipo.trim()]);
+      const tag = await db.getFirstAsync<{ id: number }>("SELECT id FROM tags WHERE nome = ? COLLATE NOCASE", [despesa.tipo.trim()]);
+      const ids = lerTagIdsBanco(despesa.tags_ids);
+      if (tag && !ids.includes(tag.id)) await db.runAsync("UPDATE despesas SET tags_ids = ? WHERE id = ?", [JSON.stringify([...ids, tag.id]), despesa.id]);
+    }
+    for (const pagamento of pagamentosLegados) {
+      if (pagamento.tags_ids !== "[]") continue;
+      const despesa = pagamento.despesa_id
+        ? await db.getFirstAsync<{ tags_ids: string }>("SELECT tags_ids FROM despesas WHERE id = ?", [pagamento.despesa_id])
+        : null;
+      const ids = lerTagIdsBanco(despesa?.tags_ids);
+      if (pagamento.tipo.trim()) {
+        await db.runAsync("INSERT OR IGNORE INTO tags (nome) VALUES (?)", [pagamento.tipo.trim()]);
+        const tag = await db.getFirstAsync<{ id: number }>("SELECT id FROM tags WHERE nome = ? COLLATE NOCASE", [pagamento.tipo.trim()]);
+        if (tag && !ids.includes(tag.id)) ids.push(tag.id);
+      }
+      await db.runAsync("UPDATE pagamentos SET tags_ids = ? WHERE id = ?", [JSON.stringify(ids), pagamento.id]);
+    }
+    for (const receita of receitasLegadas) {
+      await db.runAsync("INSERT OR IGNORE INTO tags (nome) VALUES (?)", [receita.tipo.trim()]);
+      const tag = await db.getFirstAsync<{ id: number }>("SELECT id FROM tags WHERE nome = ? COLLATE NOCASE", [receita.tipo.trim()]);
+      const ids = lerTagIdsBanco(receita.tags_ids);
+      if (tag && !ids.includes(tag.id)) await db.runAsync("UPDATE receitas SET tags_ids = ? WHERE id = ?", [JSON.stringify([...ids, tag.id]), receita.id]);
+    }
+    await db.runAsync("UPDATE despesas SET tipo = '' WHERE TRIM(tipo) <> ''");
+    await db.runAsync("UPDATE pagamentos SET tipo = '' WHERE TRIM(tipo) <> ''");
+    await db.runAsync("UPDATE receitas SET tipo = '' WHERE TRIM(tipo) <> ''");
+    await db.runAsync("UPDATE grupos_parcelas SET tipo = '' WHERE natureza IN ('Despesa', 'Receita') AND TRIM(tipo) <> ''");
+  });
+}
+
+function lerTagIdsBanco(valor?: string | null): number[] {
+  if (!valor) return [];
+  try {
+    const ids: unknown = JSON.parse(valor);
+    return Array.isArray(ids) ? ids.filter((id): id is number => Number.isInteger(id) && id > 0) : [];
+  } catch {
+    return [];
+  }
 }
 
 // Abre o banco uma única vez e reaproveita a conexão

@@ -1,4 +1,5 @@
-import { getDb } from "../db";
+import { getDb, migrarTiposLegadosParaTags } from "../db";
+import { nomesDasTags } from "./dbTags";
 
 export type Lancamento = {
   id: number;
@@ -29,8 +30,9 @@ export type GrupoParcelamentoRelatorio = {
 
 export async function buscarRelatorioParcelamentos(): Promise<GrupoParcelamentoRelatorio[]> {
   const db = await getDb();
-  return db.getAllAsync<GrupoParcelamentoRelatorio>(`
+  const [grupos, tags] = await Promise.all([db.getAllAsync<GrupoParcelamentoRelatorio & { tags_ids: string | null }>(`
     SELECT g.id, g.natureza, g.nome, g.tipo, g.valor_total, g.quantidade, g.modo_valor,
+      (SELECT d.tags_ids FROM despesas d WHERE d.grupo_parcelas_id = g.id ORDER BY d.numero_parcela LIMIT 1) AS tags_ids,
       g.criado_em AS criacao,
       CASE WHEN g.natureza = 'Despesa' THEN (SELECT COUNT(*) FROM despesas d WHERE d.grupo_parcelas_id = g.id AND d.pago = 1)
         ELSE (SELECT COUNT(*) FROM receitas r WHERE r.grupo_parcelas_id = g.id AND r.recebido = 1) END AS concluidas,
@@ -40,22 +42,30 @@ export async function buscarRelatorioParcelamentos(): Promise<GrupoParcelamentoR
       CASE WHEN g.natureza = 'Despesa' THEN COALESCE((SELECT SUM(MAX(0, d.valor - d.valor_pago)) FROM despesas d WHERE d.grupo_parcelas_id = g.id), 0)
         ELSE COALESCE((SELECT SUM(r.valor) FROM receitas r WHERE r.grupo_parcelas_id = g.id AND r.recebido = 0), 0) END AS pendente
     FROM grupos_parcelas g ORDER BY g.criado_em DESC, g.id DESC
-  `);
+  `), db.getAllAsync<{ id: number; nome: string }>("SELECT id, nome FROM tags")]);
+  return grupos.map((grupo) => ({
+    ...grupo,
+    tipo: nomesDasTags(grupo.tags_ids, tags).join(", ") || "Sem tags",
+  }));
 }
 
 export async function buscarLancamentos(): Promise<Lancamento[]> {
   const db = await getDb();
-  return db.getAllAsync<Lancamento>(`
-    SELECT id, nome, MAX(0, valor - valor_pago) AS valor, tipo AS categoria, provisao AS data, 'Despesa' AS natureza,
+  const [linhas, tags] = await Promise.all([db.getAllAsync<Lancamento & { tags_ids: string }>(`
+    SELECT id, nome, MAX(0, valor - valor_pago) AS valor, tags_ids, provisao AS data, 'Despesa' AS natureza,
       CASE WHEN pago = 1 THEN 'Pago' ELSE 'Pendente' END AS status
     FROM despesas WHERE pago = 0
     UNION ALL
-    SELECT id, nome, valor, tipo, data_pagamento, 'Despesa', 'Pago' FROM pagamentos
+    SELECT id, nome, valor, tags_ids, data_pagamento, 'Despesa', 'Pago' FROM pagamentos
     UNION ALL
-    SELECT id, nome, valor, tipo, vencimento, 'Receita',
+    SELECT id, nome, valor, tags_ids, vencimento, 'Receita',
       CASE WHEN recebido = 1 THEN 'Recebido' ELSE 'A receber' END FROM receitas
     ORDER BY data DESC, id DESC
-  `);
+  `), db.getAllAsync<{ id: number; nome: string }>("SELECT id, nome FROM tags")]);
+  return linhas.map((linha) => ({
+    ...linha,
+    categoria: nomesDasTags(linha.tags_ids, tags).join(", ") || "Sem tags",
+  }));
 }
 
 export async function listarMetas(): Promise<Meta[]> {
@@ -95,7 +105,7 @@ export async function restaurarBackup(texto: string) {
   const db = await getDb();
   const colunas: Record<(typeof tabelas)[number], string[]> = {
     despesas: ["id", "nome", "valor", "tipo", "provisao", "data_emissao", "pago", "observacao", "fixa", "frequencia", "parcelas", "numero_parcela", "grupo_parcelas_id", "valor_pago", "tags_ids", "criado_em"],
-    pagamentos: ["id", "despesa_id", "nome", "tipo", "valor", "provisao", "data_pagamento"],
+    pagamentos: ["id", "despesa_id", "nome", "tipo", "valor", "provisao", "tags_ids", "data_pagamento"],
     grupos_parcelas: ["id", "natureza", "nome", "tipo", "valor_total", "quantidade", "modo_valor", "data_emissao", "criado_em"],
     receitas: ["id", "nome", "valor", "tipo", "data", "vencimento", "observacao", "recebido", "data_recebimento", "fixa", "parcelas", "banco_id", "grupo_parcelas_id", "numero_parcela", "tags_ids", "criado_em"],
     bancos: ["id", "nome", "cor", "criado_em"],
@@ -124,6 +134,8 @@ export async function restaurarBackup(texto: string) {
       }
     }
   });
+
+  await migrarTiposLegadosParaTags(db);
 
   // Backups antigos guardavam o nome do banco diretamente na aplicação.
   // Recria registros básicos para que essas aplicações continuem selecionáveis.

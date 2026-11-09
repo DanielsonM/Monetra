@@ -4,25 +4,26 @@ import { useState } from "react";
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { inserirDespesa, pagarDespesa } from "../../database/dbGestor/dbDespesas";
+import SeletorTags from "../../components/seletorTags";
 
 export default function GastoRapido() {
   const router = useRouter();
   const [nome, setNome] = useState("");
   const [valor, setValor] = useState("");
-  const [categoria, setCategoria] = useState("Outros");
+  const [tagsIds, setTagsIds] = useState<number[]>([]);
   const [salvando, setSalvando] = useState(false);
   const hoje = new Date();
   const data = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
 
   const salvar = async () => {
     const numero = Number(valor.replace(/\./g, "").replace(",", "."));
-    if (!nome.trim() || !Number.isFinite(numero) || numero <= 0 || !categoria.trim()) {
-      Alert.alert("Confira os dados", "Informe o nome, um valor válido e a categoria.");
+    if (!nome.trim() || !Number.isFinite(numero) || numero <= 0) {
+      Alert.alert("Confira os dados", "Informe o nome e um valor válido.");
       return;
     }
     try {
       setSalvando(true);
-      const id = await inserirDespesa({ nome: nome.trim(), valor: numero, tipo: categoria.trim(), provisao: data });
+      const id = await inserirDespesa({ nome: nome.trim(), valor: numero, provisao: data, tagsIds });
       await pagarDespesa(id);
       Alert.alert("Gasto registrado", "A despesa foi marcada como paga e descontada do saldo disponível.", [{ text: "OK", onPress: () => router.back() }]);
     } catch (error) {
@@ -34,9 +35,9 @@ export default function GastoRapido() {
   return <SafeAreaView style={styles.container}>
     <View style={styles.header}><TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={26} color="#222" /></TouchableOpacity><Text style={styles.titulo}>Gasto rápido</Text></View>
     <Text style={styles.ajuda}>Registre uma compra já paga com os dados essenciais.</Text>
-    <Text style={styles.label}>O que você pagou?</Text><TextInput style={styles.campo} placeholder="Ex.: Café" value={nome} onChangeText={setNome} returnKeyType="next" />
-    <Text style={styles.label}>Valor</Text><TextInput style={styles.campo} placeholder="Ex.: 12,50" value={valor} onChangeText={setValor} keyboardType="decimal-pad" />
-    <Text style={styles.label}>Categoria</Text><TextInput style={styles.campo} placeholder="Ex.: Alimentação" value={categoria} onChangeText={setCategoria} />
+    <Text style={styles.label}>O que você pagou? *</Text><TextInput style={styles.campo} placeholder="Ex.: Café" value={nome} onChangeText={setNome} returnKeyType="next" />
+    <Text style={styles.label}>Valor *</Text><TextInput style={styles.campo} placeholder="Ex.: 12,50" value={valor} onChangeText={setValor} keyboardType="decimal-pad" />
+    <SeletorTags selecionadas={tagsIds} onChange={setTagsIds} />
     <TouchableOpacity style={styles.botao} onPress={salvar} disabled={salvando}><Text style={styles.botaoTexto}>{salvando ? "Salvando..." : "Registrar gasto pago"}</Text></TouchableOpacity>
   </SafeAreaView>;
 }

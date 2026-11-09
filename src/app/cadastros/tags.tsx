@@ -44,7 +44,7 @@ export default function CadastroTags() {
     </View>
     <Text style={styles.descricao}>Crie tags para organizar e identificar suas receitas e despesas.</Text>
     <View style={styles.formulario}>
-      <TextInput style={styles.input} placeholder="Ex.: Casa, Trabalho, Viagem" value={nome} onChangeText={setNome} maxLength={30} returnKeyType="done" onSubmitEditing={() => void adicionar()} accessibilityLabel="Nome da tag" />
+      <TextInput style={styles.input} placeholder="Nome da tag *" value={nome} onChangeText={setNome} maxLength={30} returnKeyType="done" onSubmitEditing={() => void adicionar()} accessibilityLabel="Nome da tag, obrigatório" />
       <TouchableOpacity style={styles.botaoAdicionar} onPress={() => void adicionar()} accessibilityRole="button" accessibilityLabel="Cadastrar tag">
         <Ionicons name="add" size={22} color="#FFFFFF" />
       </TouchableOpacity>

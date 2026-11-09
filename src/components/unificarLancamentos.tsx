@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import InfoButton from "./infoButton";
 import { type Despesa, listarDespesas, unificarDespesas } from "../database/dbGestor/dbDespesas";
 import { type Receita, listarReceitas, unificarReceitas } from "../database/dbGestor/dbReceitas";
+import { listarTags, nomesDasTags, type Tag } from "../database/dbGestor/dbTags";
 
 type Tipo = "Despesa" | "Receita";
 type Lancamento = Despesa | Receita;
@@ -16,9 +17,14 @@ export default function UnificarLancamentos({ tipo }: { tipo: Tipo }) {
   const [lista, setLista] = useState<Lancamento[]>([]);
   const [destinoId, setDestinoId] = useState<number | null>(null);
   const [origemId, setOrigemId] = useState<number | null>(null);
+  const [tags, setTags] = useState<Tag[]>([]);
 
   const carregar = useCallback(async () => {
-    const dados = tipo === "Despesa" ? await listarDespesas() : await listarReceitas();
+    const [dados, tagsDisponiveis] = await Promise.all([
+      tipo === "Despesa" ? listarDespesas() : listarReceitas(),
+      listarTags(),
+    ]);
+    setTags(tagsDisponiveis);
     const pendentes = dados.filter((item) => tipo === "Despesa"
       ? (item as Despesa).pago === 0 && !(item as Despesa).grupo_parcelas_id
       : (item as Receita).recebido === 0 && !(item as Receita).grupo_parcelas_id);
@@ -58,7 +64,7 @@ export default function UnificarLancamentos({ tipo }: { tipo: Tipo }) {
     <Text style={s.instrucao}>Escolha o lançamento que continuará com o valor total:</Text>
     <ScrollView contentContainerStyle={s.lista}>
       {lista.length === 0 ? <Text style={s.vazio}>Não há {tipo === "Despesa" ? "despesas não pagas" : "receitas não recebidas"} para unificar.</Text> : lista.map((item) => <TouchableOpacity key={item.id} style={[s.card, destinoId === item.id && s.selecionado]} onPress={() => escolher(item, "destino")}>
-        <View style={s.linha}><Text style={s.nome}>{item.nome}</Text><Text style={s.valor}>{moeda(item.valor)}</Text></View><Text style={s.detalhe}>{tipo === "Despesa" ? `Provisão ${ (item as Despesa).provisao }` : `A receber ${(item as Receita).vencimento}`} · {item.tipo}</Text>
+        <View style={s.linha}><Text style={s.nome}>{item.nome}</Text><Text style={s.valor}>{moeda(item.valor)}</Text></View><Text style={s.detalhe}>{tipo === "Despesa" ? `Provisão ${ (item as Despesa).provisao } · ${nomesDasTags((item as Despesa).tags_ids, tags).join(" · ") || "Sem tags"}` : `A receber ${(item as Receita).vencimento} · ${nomesDasTags((item as Receita).tags_ids, tags).join(" · ") || "Sem tags"}`}</Text>
         {destinoId === item.id && <View style={s.origemBox}><Text style={s.rotuloOrigem}>Agora escolha o lançamento que será somado:</Text>{lista.filter((x) => x.id !== item.id).map((x) => <TouchableOpacity key={x.id} style={s.origemLinha} onPress={() => escolher(x, "origem")}><Ionicons name={origemId === x.id ? "radio-button-on" : "radio-button-off"} size={20} color="#00897B"/><Text style={s.origemNome}>{x.nome} · {moeda(x.valor)}</Text></TouchableOpacity>)}</View>}
       </TouchableOpacity>)}
     </ScrollView>

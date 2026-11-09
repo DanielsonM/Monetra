@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { lerTags } from "./dbTags";
 
 export type ResumoMes = {
   mes: string; // AAAA-MM
@@ -8,6 +9,24 @@ export type ResumoMes = {
 };
 
 export type GastoTipo = { tipo: string; total: number };
+type GastoComTags = { valor: number; tags_ids: string };
+type ReceitaComTags = { valor: number; tags_ids: string };
+
+function totalDaTag(linhas: ReceitaComTags[], idTag: number | undefined): number {
+  if (idTag === undefined) return 0;
+  return linhas.reduce((total, linha) => lerTags(linha.tags_ids).includes(idTag) ? total + linha.valor : total, 0);
+}
+
+function agruparGastosPorTags(linhas: GastoComTags[], nomesPorId: Map<number, string>): GastoTipo[] {
+  const totais = new Map<string, number>();
+  for (const linha of linhas) {
+    const nomes = lerTags(linha.tags_ids).map((id) => nomesPorId.get(id)).filter((nome): nome is string => Boolean(nome));
+    const categorias = nomes.length ? nomes : ["Sem tags"];
+    const parcela = linha.valor / categorias.length;
+    for (const nome of categorias) totais.set(nome, (totais.get(nome) ?? 0) + parcela);
+  }
+  return [...totais].map(([tipo, total]) => ({ tipo, total })).sort((a, b) => b.total - a.total);
+}
 export type MovimentoParcelado = { id: number; natureza: "Despesa" | "Receita"; nome: string; parcela: number; quantidade: number; valor: number; data: string; status: string };
 
 export async function movimentosParceladosDoMes(mes: string): Promise<MovimentoParcelado[]> {
@@ -54,7 +73,7 @@ export type PlanejamentoMes = {
 export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
   const db = await getDb();
 
-  const [recebidas, aReceber, salarioRecebido, salarioAReceber, pagas, pendentes, pagasPorTipo, pendentesPorTipo] =
+  const [recebidas, aReceber, salariosRecebidos, salariosAReceber, pagas, pendentes, pagasPorTags, pendentesPorTags, tags] =
     await Promise.all([
       db.getFirstAsync<{ total: number | null }>(
         "SELECT SUM(valor) AS total FROM receitas WHERE recebido = 1 AND substr(data, 1, 7) = ?",
@@ -64,12 +83,12 @@ export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
         "SELECT SUM(valor) AS total FROM receitas WHERE recebido = 0 AND substr(vencimento, 1, 7) = ?",
         [mes]
       ),
-      db.getFirstAsync<{ total: number | null }>(
-        "SELECT SUM(valor) AS total FROM receitas WHERE recebido = 1 AND tipo = 'Salário' AND substr(data, 1, 7) = ?",
+      db.getAllAsync<ReceitaComTags>(
+        "SELECT valor, tags_ids FROM receitas WHERE recebido = 1 AND substr(data, 1, 7) = ?",
         [mes]
       ),
-      db.getFirstAsync<{ total: number | null }>(
-        "SELECT SUM(valor) AS total FROM receitas WHERE recebido = 0 AND tipo = 'Salário' AND substr(vencimento, 1, 7) = ?",
+      db.getAllAsync<ReceitaComTags>(
+        "SELECT valor, tags_ids FROM receitas WHERE recebido = 0 AND substr(vencimento, 1, 7) = ?",
         [mes]
       ),
       db.getFirstAsync<{ total: number | null }>(
@@ -80,20 +99,22 @@ export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
         "SELECT SUM(MAX(0, valor - valor_pago)) AS total FROM despesas WHERE pago = 0 AND substr(provisao, 1, 7) = ?",
         [mes]
       ),
-      db.getAllAsync<GastoTipo>(
-        `SELECT tipo, SUM(valor) AS total FROM pagamentos
-         WHERE substr(data_pagamento, 1, 7) = ? GROUP BY tipo`,
+      db.getAllAsync<GastoComTags>(
+        `SELECT valor, tags_ids FROM pagamentos WHERE substr(data_pagamento, 1, 7) = ?`,
         [mes]
       ),
-      db.getAllAsync<GastoTipo>(
-        `SELECT tipo, SUM(MAX(0, valor - valor_pago)) AS total FROM despesas
-         WHERE pago = 0 AND substr(provisao, 1, 7) = ? GROUP BY tipo`,
+      db.getAllAsync<GastoComTags>(
+        `SELECT MAX(0, valor - valor_pago) AS valor, tags_ids FROM despesas
+         WHERE pago = 0 AND substr(provisao, 1, 7) = ?`,
         [mes]
       ),
+      db.getAllAsync<{ id: number; nome: string }>("SELECT id, nome FROM tags"),
     ]);
 
+  const nomesPorId = new Map(tags.map((tag) => [tag.id, tag.nome]));
+  const tagSalarioId = tags.find((tag) => tag.nome.localeCompare("Salário", "pt-BR", { sensitivity: "base" }) === 0)?.id;
   const categorias = new Map<string, CategoriaPlanejada>();
-  for (const item of pagasPorTipo) {
+  for (const item of agruparGastosPorTags(pagasPorTags, nomesPorId)) {
     categorias.set(item.tipo, {
       tipo: item.tipo,
       pago: item.total,
@@ -101,7 +122,7 @@ export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
       total: item.total,
     });
   }
-  for (const item of pendentesPorTipo) {
+  for (const item of agruparGastosPorTags(pendentesPorTags, nomesPorId)) {
     const categoria = categorias.get(item.tipo) ?? {
       tipo: item.tipo,
       pago: 0,
@@ -116,8 +137,8 @@ export async function planejamentoDoMes(mes: string): Promise<PlanejamentoMes> {
   return {
     receitasRecebidas: recebidas?.total ?? 0,
     receitasAReceber: aReceber?.total ?? 0,
-    salarioRecebido: salarioRecebido?.total ?? 0,
-    salarioAReceber: salarioAReceber?.total ?? 0,
+    salarioRecebido: totalDaTag(salariosRecebidos, tagSalarioId),
+    salarioAReceber: totalDaTag(salariosAReceber, tagSalarioId),
     despesasPagas: pagas?.total ?? 0,
     despesasAPagar: pendentes?.total ?? 0,
     categorias: [...categorias.values()].sort((a, b) => b.total - a.total),
@@ -167,15 +188,12 @@ export async function resumoPorMes(qtd = 12): Promise<ResumoMes[]> {
   });
 }
 
-// Quanto foi gasto em cada tipo de despesa em um mês ("AAAA-MM")
+// Quanto foi gasto por tag em um mês ("AAAA-MM")
 export async function gastosPorTipo(mes: string): Promise<GastoTipo[]> {
   const db = await getDb();
-  return db.getAllAsync<GastoTipo>(
-    `SELECT tipo, SUM(valor) AS total
-     FROM pagamentos
-     WHERE substr(data_pagamento, 1, 7) = ?
-     GROUP BY tipo
-     ORDER BY total DESC`,
-    [mes]
-  );
+  const [pagamentos, tags] = await Promise.all([
+    db.getAllAsync<GastoComTags>("SELECT valor, tags_ids FROM pagamentos WHERE substr(data_pagamento, 1, 7) = ?", [mes]),
+    db.getAllAsync<{ id: number; nome: string }>("SELECT id, nome FROM tags"),
+  ]);
+  return agruparGastosPorTags(pagamentos, new Map(tags.map((tag) => [tag.id, tag.nome])));
 }

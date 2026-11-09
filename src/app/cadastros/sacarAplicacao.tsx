@@ -85,7 +85,7 @@ export default function SacarAplicacao() {
           <Text style={styles.rotuloSaldo}>Saldo disponível para saque</Text>
           <Text style={styles.saldo}>{moeda(aplicacao.valor)}</Text>
         </View>}
-        <Text style={styles.label}>Valor do saque</Text>
+        <Text style={styles.label}>Valor do saque *</Text>
         <TextInput style={styles.input} placeholder="0,00" keyboardType="number-pad" value={valor} onChangeText={(texto) => setValor(mascaraMoeda(texto))} />
         <Text style={styles.ajuda}>Será criada uma receita recebida do tipo “Saque de aplicação”.</Text>
         <TouchableOpacity style={[styles.botao, salvando && styles.botaoDesabilitado]} onPress={confirmarSaque} disabled={salvando || !aplicacao}>

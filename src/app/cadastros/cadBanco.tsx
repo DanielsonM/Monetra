@@ -63,7 +63,7 @@ export default function CadBanco() {
         <Text style={styles.titulo}>{idEdicao === null ? "Cadastrar banco" : "Editar banco"}</Text>
         <InfoButton compacto titulo="Cadastro de banco" texto="Cadastre o nome e escolha uma cor. O banco poderá ser vinculado às receitas recebidas e às aplicações financeiras." />
       </View>
-      <Text style={styles.label}>Nome do banco</Text>
+      <Text style={styles.label}>Nome do banco *</Text>
       <TextInput style={styles.input} value={nome} onChangeText={setNome} placeholder="Ex.: Banco Central" autoCapitalize="words" maxLength={60} />
       <Text style={styles.label}>Cor</Text>
       <View style={styles.paleta}>

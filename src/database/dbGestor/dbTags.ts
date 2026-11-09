@@ -22,7 +22,7 @@ export async function criarTag(nome: string) {
 export async function excluirTag(id: number) {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
-    for (const tabela of ["despesas", "receitas"] as const) {
+    for (const tabela of ["despesas", "receitas", "pagamentos"] as const) {
       const linhas = await db.getAllAsync<{ id: number; tags_ids: string }>(`SELECT id, tags_ids FROM ${tabela} WHERE tags_ids LIKE ?`, [`%${id}%`]);
       for (const linha of linhas) {
         const ids = lerTags(linha.tags_ids).filter((tagId) => tagId !== id);
@@ -41,4 +41,9 @@ export function lerTags(valor?: string | null): number[] {
   } catch {
     return [];
   }
+}
+
+export function nomesDasTags(valor: string | null | undefined, tags: readonly Pick<Tag, "id" | "nome">[]): string[] {
+  const nomesPorId = new Map(tags.map((tag) => [tag.id, tag.nome]));
+  return lerTags(valor).map((id) => nomesPorId.get(id)).filter((nome): nome is string => Boolean(nome));
 }

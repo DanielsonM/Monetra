@@ -131,7 +131,7 @@ export default function Planejamento() {
     const tipo = tipoOrcamento.trim();
     const limite = Number(limiteOrcamento.replace(",", "."));
     if (!tipo || !Number.isFinite(limite) || limite <= 0) {
-      Alert.alert("Verifique os dados", "Informe uma categoria e um limite mensal maior que zero.");
+      Alert.alert("Verifique os dados", "Informe uma tag e um limite mensal maior que zero.");
       return;
     }
     try {
@@ -304,13 +304,13 @@ export default function Planejamento() {
         </View>
 
         <View style={styles.cartao}>
-          <Text style={styles.tituloCartao}>Gastos por tipo</Text>
+          <Text style={styles.tituloCartao}>Gastos por tag</Text>
           <Text style={styles.subtituloCartao}>
-            Compare os gastos previstos com o limite mensal de cada categoria.
+            Compare os gastos previstos com o limite mensal de cada tag.
           </Text>
           <TouchableOpacity style={styles.botaoLimite} onPress={() => abrirOrcamento()} activeOpacity={0.8}>
             <Ionicons name="add-circle-outline" size={19} color="#00897B" />
-            <Text style={styles.botaoLimiteTexto}>Definir limite por categoria</Text>
+            <Text style={styles.botaoLimiteTexto}>Definir limite por tag</Text>
           </TouchableOpacity>
 
           {erro ? (
@@ -383,11 +383,11 @@ export default function Planejamento() {
         <View style={styles.modalFundo}>
           <View style={styles.modalCartao}>
             <Text style={styles.tituloCartao}>{orcamentos.some((o) => o.tipo === tipoOrcamento) ? "Editar limite mensal" : "Novo limite mensal"}</Text>
-            <Text style={styles.rotuloCampo}>Categoria</Text>
+            <Text style={styles.rotuloCampo}>Tag *</Text>
             <TextInput value={tipoOrcamento} onChangeText={setTipoOrcamento} placeholder="Ex.: Alimentação" style={styles.campo} autoCapitalize="sentences" />
-            <Text style={styles.rotuloCampo}>Limite por mês</Text>
+            <Text style={styles.rotuloCampo}>Limite por mês *</Text>
             <TextInput value={limiteOrcamento} onChangeText={setLimiteOrcamento} placeholder="Ex.: 800" style={styles.campo} keyboardType="decimal-pad" />
-            <Text style={styles.dicaCampo}>Use o mesmo nome da categoria cadastrada nas despesas para acompanhar os gastos corretamente.</Text>
+            <Text style={styles.dicaCampo}>Use o mesmo nome da tag cadastrada nas despesas para acompanhar os gastos corretamente.</Text>
             <View style={styles.acoesModal}>
               <TouchableOpacity onPress={() => setModalOrcamento(false)} style={styles.acaoSecundaria}><Text style={styles.acaoSecundariaTexto}>Cancelar</Text></TouchableOpacity>
               <TouchableOpacity onPress={gravarOrcamento} disabled={salvandoOrcamento} style={styles.acaoPrimaria}><Text style={styles.acaoPrimariaTexto}>{salvandoOrcamento ? "Salvando..." : "Salvar limite"}</Text></TouchableOpacity>

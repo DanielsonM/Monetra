@@ -8,6 +8,7 @@ import {
   type NaturezaRecente,
 } from "../database/dbGestor/dbRecentes";
 import { dataISOparaBR } from "../utils/converterData";
+import { listarTags, nomesDasTags, type Tag } from "../database/dbGestor/dbTags";
 import InfoButton from "./infoButton";
 
 type NomeIcone = keyof typeof Ionicons.glyphMap;
@@ -81,6 +82,7 @@ function statusDoLancamento(item: LancamentoRecente) {
 
 export default function LancamentosRecentes() {
   const [lancamentos, setLancamentos] = useState<LancamentoRecente[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [aberto, setAberto] = useState(false);
   const [carregando, setCarregando] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>("todas");
@@ -88,9 +90,12 @@ export default function LancamentosRecentes() {
   const carregar = useCallback(async () => {
     try {
       setCarregando(true);
-      setLancamentos(
-        await listarLancamentosRecentes(3, filtro === "todas" ? undefined : filtro)
-      );
+      const [lista, tagsDisponiveis] = await Promise.all([
+        listarLancamentosRecentes(3, filtro === "todas" ? undefined : filtro),
+        listarTags(),
+      ]);
+      setLancamentos(lista);
+      setTags(tagsDisponiveis);
     } catch (erro) {
       console.error(erro);
     } finally {
@@ -164,9 +169,10 @@ export default function LancamentosRecentes() {
             </View>
 
             {lancamentos.map((item) => {
-              const icone = ICONES[item.tipo] ?? ICONE_PADRAO;
-              const status = statusDoLancamento(item);
               const receita = item.natureza === "receita";
+              const nomesTags = nomesDasTags(item.tags_ids, tags).join(" · ");
+              const icone = ICONES[nomesTags.split(" · ")[0]] ?? ICONE_PADRAO;
+              const status = statusDoLancamento(item);
 
               return (
                 <View key={`${item.natureza}-${item.id}`} style={styles.cardItem}>
@@ -179,7 +185,7 @@ export default function LancamentosRecentes() {
                       {item.nome}
                     </Text>
                     <Text style={styles.tipo} numberOfLines={1}>
-                      {receita ? "Receita" : "Despesa"} · {item.tipo}
+                      {receita ? `Receita · ${nomesTags || "Sem tags"}` : `Despesa · ${nomesTags || "Sem tags"}`}
                     </Text>
                     <View style={styles.linhaStatus}>
                       <Text style={styles.data}>

@@ -1,5 +1,6 @@
 import { somarUmMes } from "../../utils/converterData";
 import { getDb } from "../db";
+import { lerTags } from "./dbTags";
 import { totalReceitasRecebidas } from "./dbReceitas";
 import { dataDaParcela, distribuirValoresParcelas, type ModoValorParcelas } from "./dbParcelamentos";
 
@@ -7,7 +8,6 @@ export type Despesa = {
   id: number;
   nome: string;
   valor: number;
-  tipo: string;
   provisao: string; // AAAA-MM-DD
   data_emissao: string;
   pago: number; // 0 = não pago, 1 = pago
@@ -25,7 +25,6 @@ export type Despesa = {
 export type DadosNovaDespesa = {
   nome: string;
   valor: number;
-  tipo: string;
   provisao: string;
   data_emissao?: string;
   observacao?: string;
@@ -42,7 +41,7 @@ export async function inserirDespesa(d: DadosNovaDespesa) {
     [
       d.nome,
       d.valor,
-      d.tipo,
+      "",
       d.provisao,
       d.data_emissao ?? dataHojeISO(),
       d.observacao?.trim() || null,
@@ -70,7 +69,7 @@ export async function inserirDespesasParceladas(
   await db.withTransactionAsync(async () => {
     const grupo = await db.runAsync(
       "INSERT INTO grupos_parcelas (natureza, nome, tipo, valor_total, quantidade, modo_valor, data_emissao) VALUES ('Despesa', ?, ?, ?, ?, ?, ?)",
-      [d.nome, d.tipo, total, quantidade, modo, d.data_emissao ?? dataHojeISO()]
+      [d.nome, "", total, quantidade, modo, d.data_emissao ?? dataHojeISO()]
     );
     for (let indice = 0; indice < quantidade; indice++) {
       const resultado = await db.runAsync(
@@ -79,7 +78,7 @@ export async function inserirDespesasParceladas(
         [
           d.nome,
           valores[indice],
-          d.tipo,
+          "",
           dataDaParcela(d.provisao, indice),
           d.data_emissao ?? dataHojeISO(),
           d.observacao?.trim() || null,
@@ -118,7 +117,6 @@ export async function atualizarDespesa(
   d: {
     nome: string;
     valor: number;
-    tipo: string;
     provisao: string;
     data_emissao?: string;
     observacao?: string;
@@ -132,13 +130,13 @@ export async function atualizarDespesa(
   const atual = await db.getFirstAsync<{ grupo_parcelas_id: number | null }>("SELECT grupo_parcelas_id FROM despesas WHERE id = ?", [id]);
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      "UPDATE despesas SET nome = ?, valor = ?, tipo = ?, provisao = ?, data_emissao = ?, observacao = ?, fixa = ?, frequencia = ?, parcelas = ?, tags_ids = ? WHERE id = ?",
-      [d.nome, d.valor, d.tipo, d.provisao, d.data_emissao ?? dataHojeISO(), d.observacao?.trim() || null, d.fixa ? 1 : 0, d.frequencia ?? "mensal", d.parcelas ?? 1, JSON.stringify(d.tagsIds ?? []), id]
+      "UPDATE despesas SET nome = ?, valor = ?, provisao = ?, data_emissao = ?, observacao = ?, fixa = ?, frequencia = ?, parcelas = ?, tags_ids = ? WHERE id = ?",
+      [d.nome, d.valor, d.provisao, d.data_emissao ?? dataHojeISO(), d.observacao?.trim() || null, d.fixa ? 1 : 0, d.frequencia ?? "mensal", d.parcelas ?? 1, JSON.stringify(d.tagsIds ?? []), id]
     );
     if (atual?.grupo_parcelas_id) {
-      await db.runAsync("UPDATE despesas SET nome = ?, tipo = ?, data_emissao = ?, tags_ids = ? WHERE grupo_parcelas_id = ?", [d.nome, d.tipo, d.data_emissao ?? dataHojeISO(), JSON.stringify(d.tagsIds ?? []), atual.grupo_parcelas_id]);
+      await db.runAsync("UPDATE despesas SET nome = ?, data_emissao = ?, tags_ids = ? WHERE grupo_parcelas_id = ?", [d.nome, d.data_emissao ?? dataHojeISO(), JSON.stringify(d.tagsIds ?? []), atual.grupo_parcelas_id]);
       const total = await db.getFirstAsync<{ total: number | null }>("SELECT SUM(valor) AS total FROM despesas WHERE grupo_parcelas_id = ?", [atual.grupo_parcelas_id]);
-      await db.runAsync("UPDATE grupos_parcelas SET nome = ?, tipo = ?, valor_total = ? WHERE id = ?", [d.nome, d.tipo, total?.total ?? d.valor, atual.grupo_parcelas_id]);
+      await db.runAsync("UPDATE grupos_parcelas SET nome = ?, tipo = '', valor_total = ? WHERE id = ?", [d.nome, total?.total ?? d.valor, atual.grupo_parcelas_id]);
     }
   });
 }
@@ -195,8 +193,8 @@ async function registrarPagamento(id: number, valor: number) {
   await db.withTransactionAsync(async () => {
     const totalPago = (d.valor_pago ?? 0) + valor;
     await db.runAsync(
-      "INSERT INTO pagamentos (despesa_id, nome, tipo, valor, provisao) VALUES (?, ?, ?, ?, ?)",
-      [d.id, d.nome, d.tipo, valor, d.provisao]
+      "INSERT INTO pagamentos (despesa_id, nome, tipo, valor, provisao, tags_ids) VALUES (?, ?, ?, ?, ?, ?)",
+      [d.id, d.nome, "", valor, d.provisao, d.tags_ids ?? "[]"]
     );
     if (totalPago + 0.005 >= d.valor) {
       if (d.fixa) {
@@ -219,9 +217,10 @@ export async function unificarDespesas(origemId: number, destinoId: number) {
     if (!origem || !destino || origem.id === destino.id) throw new Error("As despesas selecionadas não estão mais disponíveis.");
     const valor = origem.valor + destino.valor;
     const valorPago = (origem.valor_pago ?? 0) + (destino.valor_pago ?? 0);
+    const tagsIds = [...new Set([...lerTags(destino.tags_ids), ...lerTags(origem.tags_ids)])];
     const mensagem = `Unificada com ${origem.nome} (${origem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em ${new Date().toLocaleDateString("pt-BR")}.`;
     const observacao = [destino.observacao?.trim(), mensagem].filter(Boolean).join("\n");
-    await db.runAsync("UPDATE despesas SET valor = ?, valor_pago = ?, observacao = ? WHERE id = ?", [valor, valorPago, observacao, destino.id]);
+    await db.runAsync("UPDATE despesas SET valor = ?, valor_pago = ?, observacao = ?, tags_ids = ? WHERE id = ?", [valor, valorPago, observacao, JSON.stringify(tagsIds), destino.id]);
     await db.runAsync("DELETE FROM despesas WHERE id = ?", [origem.id]);
     await db.runAsync("INSERT INTO unificacoes (natureza, nome_unificado, valor_unificado, nome_origem, valor_origem, nome_destino, valor_destino) VALUES (?, ?, ?, ?, ?, ?, ?)", ["Despesa", destino.nome, valor, origem.nome, origem.valor, destino.nome, destino.valor]);
   });

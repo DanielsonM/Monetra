@@ -150,8 +150,8 @@ export default function Configuracao() {
   const resumo =
     `Você será avisado às ${horarios}` +
     (config.diasAntesProvisao === 0
-      ? " no dia da provisão"
-      : `, começando ${rotuloDias(config.diasAntesProvisao)} antes da provisão`) +
+      ? " no dia do vencimento"
+      : `, começando ${rotuloDias(config.diasAntesProvisao)} antes do vencimento`) +
     (config.avisarAposProvisao
       ? ", e continuará sendo avisado todo dia enquanto estiver atrasada, até pagar."
       : ".");
@@ -164,7 +164,7 @@ export default function Configuracao() {
           <Ionicons name="arrow-back" size={28} color="#1A1A1A" />
         </TouchableOpacity>
         <Text style={styles.titulo}>Configurações</Text>
-        <InfoButton compacto titulo="Configurações de avisos" texto="Defina com quantos dias de antecedência os avisos começam, a frequência das repetições e os horários das notificações. Os avisos continuam para despesas não pagas conforme as opções escolhidas." />
+        <InfoButton compacto titulo="Configurações de avisos" texto="Defina com quantos dias de antecedência ao vencimento os avisos começam, a frequência das repetições e os horários das notificações. Os avisos continuam para despesas não pagas conforme as opções escolhidas." />
       </View>
 
       <ScrollView
@@ -175,7 +175,7 @@ export default function Configuracao() {
           <View style={styles.cardTitulo}>
             <Ionicons name="notifications-outline" size={22} color="#6A1B9A" />
             <Text style={styles.cardTituloTexto}>
-              Notificações de provisão
+              Notificações de vencimento
             </Text>
           </View>
 
@@ -190,7 +190,7 @@ export default function Configuracao() {
               />
             ))}
           </View>
-          <Text style={styles.dica}>antes da provisão</Text>
+          <Text style={styles.dica}>antes do vencimento</Text>
 
           <Text style={styles.label}>Repetir a cada</Text>
           <View style={styles.chips}>
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Alternância para manter avisos após a data de provisão
+  // Alternância para manter avisos após o vencimento
   linhaSwitch: {
     flexDirection: "row",
     alignItems: "center",

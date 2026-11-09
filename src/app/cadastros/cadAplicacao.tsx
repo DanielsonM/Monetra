@@ -93,14 +93,14 @@ export default function CadAplicacao() {
         <InfoButton compacto titulo="Aplicação financeira" texto="Cadastre o banco e o valor que você mantém aplicado. O total das aplicações aparece no card da tela inicial e não altera o saldo disponível." />
       </View>
 
-      <Text style={styles.label}>Banco</Text>
+      <Text style={styles.label}>Banco *</Text>
       <SeletorBanco bancos={bancos} valor={bancoId} onChange={setBancoId} placeholder="Selecione um banco" />
       {bancos.length === 0 && <TouchableOpacity style={styles.cadastrarBanco} onPress={() => router.push("/cadastros/cadBanco" as never)}>
         <Text style={styles.cadastrarBancoTexto}>Cadastre um banco para continuar</Text>
         <Ionicons name="chevron-forward" size={18} color="#00897B" />
       </TouchableOpacity>}
 
-      <Text style={styles.label}>Valor aplicado</Text>
+      <Text style={styles.label}>Valor aplicado *</Text>
       <View style={styles.campoValor}>
         <Text style={styles.prefixo}>R$</Text>
         <TextInput

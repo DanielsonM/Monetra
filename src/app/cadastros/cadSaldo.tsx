@@ -97,7 +97,7 @@ export default function CadSaldo() {
         <InfoButton compacto titulo="Novo saldo" texto="Registre um valor que já está disponível, como dinheiro inicial ou uma reserva. Esse valor entra no cálculo do saldo disponível." />
       </View>
 
-      <Text style={styles.label}>Valor</Text>
+      <Text style={styles.label}>Valor *</Text>
       <View style={styles.campoValor}>
         <Text style={styles.prefixo}>R$</Text>
         <TextInput
@@ -110,7 +110,7 @@ export default function CadSaldo() {
         />
       </View>
 
-      <Text style={styles.label}>Tipo</Text>
+      <Text style={styles.label}>Tipo *</Text>
       <View ref={campoTipoRef} collapsable={false}>
         <TouchableOpacity
           style={styles.combo}

@@ -31,7 +31,7 @@ export default function RelatorioParcelamentos() {
     try {
       setCarregando(true);
       const linhas = grupos.map((g) => [g.natureza, g.nome, g.tipo, g.quantidade, g.concluidas, g.valor_total.toFixed(2).replace(".", ","), g.pendente.toFixed(2).replace(".", ","), g.modo_valor === "total" ? "Valor total" : "Valor por parcela"]);
-      const csv = [["Natureza", "Nome", "Tipo", "Parcelas", "Concluídas", "Valor total", "Pendente", "Modo do valor"], ...linhas].map((linha) => linha.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+      const csv = [["Natureza", "Nome", "Tags", "Parcelas", "Concluídas", "Valor total", "Pendente", "Modo do valor"], ...linhas].map((linha) => linha.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\r\n");
       const arquivo = new File(Paths.cache, "monetra-parcelamentos.csv");
       arquivo.write(`\uFEFF${csv}`);
       await compartilhar(arquivo.uri, "text/csv");
@@ -42,7 +42,7 @@ export default function RelatorioParcelamentos() {
     try {
       setCarregando(true);
       const linhas = grupos.map((g) => `<tr><td>${escapar(g.natureza)}</td><td>${escapar(g.nome)}</td><td>${escapar(g.tipo)}</td><td>${g.concluidas}/${g.quantidade}</td><td>${moeda(g.valor_total)}</td><td>${moeda(g.pendente)}</td></tr>`).join("");
-      const html = `<meta charset="utf-8"><style>body{font-family:Arial;padding:24px;color:#222}h1{color:#00897b}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#e0f2f1}</style><h1>Relatório de parcelamentos</h1><p>${grupos.length} grupos · Total ${moeda(resumo.total)} · Pendente ${moeda(resumo.pendente)}</p><table><thead><tr><th>Natureza</th><th>Nome</th><th>Tipo</th><th>Concluídas</th><th>Total</th><th>Pendente</th></tr></thead><tbody>${linhas}</tbody></table>`;
+      const html = `<meta charset="utf-8"><style>body{font-family:Arial;padding:24px;color:#222}h1{color:#00897b}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#e0f2f1}</style><h1>Relatório de parcelamentos</h1><p>${grupos.length} grupos · Total ${moeda(resumo.total)} · Pendente ${moeda(resumo.pendente)}</p><table><thead><tr><th>Natureza</th><th>Nome</th><th>Tags</th><th>Concluídas</th><th>Total</th><th>Pendente</th></tr></thead><tbody>${linhas}</tbody></table>`;
       const resultado = await Print.printToFileAsync({ html });
       await compartilhar(resultado.uri, "application/pdf");
     } catch (erro) { console.error(erro); Alert.alert("Erro", "Não foi possível gerar o PDF."); }

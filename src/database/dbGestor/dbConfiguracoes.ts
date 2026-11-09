@@ -1,11 +1,11 @@
 import { getDb } from "../db";
 
 export type ConfigNotificacao = {
-  diasAntesProvisao: number; // quantos dias antes da provisão começa a avisar
+  diasAntesProvisao: number; // quantos dias antes do vencimento começa a avisar
   intervaloHoras: number; // de quantas em quantas horas avisa
   horaInicio: number; // primeiro horário do dia (0-23)
   horaFim: number; // último horário do dia (0-23)
-  avisarAposProvisao: boolean; // continua avisando depois da provisão, se não paga
+  avisarAposProvisao: boolean; // continua avisando depois do vencimento, se não paga
 };
 
 export const CONFIG_PADRAO: ConfigNotificacao = {

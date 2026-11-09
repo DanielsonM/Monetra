@@ -30,7 +30,7 @@ export default function Relatorios() {
   const exportarCsv = async () => {
     try {
       setCarregando(true);
-      const csv = ["Data;Natureza;Nome;Categoria;Status;Valor", ...filtrados.map((item) => [item.data, item.natureza, item.nome, item.categoria, item.status, item.valor.toFixed(2).replace(".", ",")].map((valor) => `"${String(valor).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
+      const csv = ["Data;Natureza;Nome;Tags;Status;Valor", ...filtrados.map((item) => [item.data, item.natureza, item.nome, item.categoria, item.status, item.valor.toFixed(2).replace(".", ",")].map((valor) => `"${String(valor).replace(/"/g, '""')}"`).join(";"))].join("\r\n");
       const arquivo = new File(Paths.cache, `monetra-${mes}.csv`);
       arquivo.write(`\uFEFF${csv}`);
       await compartilhar(arquivo.uri, "text/csv");
@@ -42,7 +42,7 @@ export default function Relatorios() {
     try {
       setCarregando(true);
       const linhas = filtrados.map((item) => `<tr><td>${escapar(item.data)}</td><td>${escapar(item.natureza)}</td><td>${escapar(item.nome)}</td><td>${escapar(item.categoria)}</td><td>${escapar(item.status)}</td><td>${moeda(item.valor)}</td></tr>`).join("");
-      const html = `<meta charset="utf-8"><style>body{font-family:Arial;padding:24px;color:#222}h1{color:#00897b}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#e0f2f1}</style><h1>Relatório Monetra — ${escapar(mes)}</h1><p>${filtrados.length} lançamentos${categoria ? ` · categoria: ${escapar(categoria)}` : ""}</p><table><thead><tr><th>Data</th><th>Tipo</th><th>Nome</th><th>Categoria</th><th>Status</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table>`;
+      const html = `<meta charset="utf-8"><style>body{font-family:Arial;padding:24px;color:#222}h1{color:#00897b}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#e0f2f1}</style><h1>Relatório Monetra — ${escapar(mes)}</h1><p>${filtrados.length} lançamentos${categoria ? ` · tags: ${escapar(categoria)}` : ""}</p><table><thead><tr><th>Data</th><th>Natureza</th><th>Nome</th><th>Tags</th><th>Status</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table>`;
       const resultado = await Print.printToFileAsync({ html });
       await compartilhar(resultado.uri, "application/pdf");
     } catch (erro) { console.error(erro); Alert.alert("Erro", "Não foi possível gerar o PDF."); }
@@ -65,8 +65,8 @@ export default function Relatorios() {
       </TouchableOpacity>
       <Text style={styles.label}>Mês (AAAA-MM)</Text>
       <TextInput style={styles.campo} value={mes} onChangeText={setMes} placeholder="2026-11" />
-      <Text style={styles.label}>Categoria (opcional)</Text>
-      <TextInput style={styles.campo} value={categoria} onChangeText={setCategoria} placeholder="Todas as categorias" />
+      <Text style={styles.label}>Tags</Text>
+      <TextInput style={styles.campo} value={categoria} onChangeText={setCategoria} placeholder="Filtrar por tag" />
       <View style={styles.resumo}><Text style={styles.resumoTexto}>{filtrados.length} lançamentos · {moeda(receitas)} receitas · {moeda(gastos)} despesas</Text></View>
       <TouchableOpacity disabled={carregando} style={styles.botao} onPress={exportarCsv}><Ionicons name="document-text-outline" size={20} color="#FFFFFF" /><Text style={styles.botaoTexto}>{carregando ? "Preparando..." : "Exportar CSV"}</Text></TouchableOpacity>
       <TouchableOpacity disabled={carregando} style={styles.botaoPdf} onPress={exportarPdf}><Ionicons name="document-outline" size={20} color="#00897B" /><Text style={styles.botaoPdfTexto}>Exportar PDF</Text></TouchableOpacity>

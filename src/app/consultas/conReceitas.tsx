@@ -26,7 +26,7 @@ import { ModalSeletorBanco } from "../../components/seletorBanco";
 import CardParcelamento from "../../components/cardParcelamento";
 import NavegadorMes, { chaveMesAtual } from "../../components/navegadorMes";
 import CardResumoRetratil from "../../components/cardResumoRetratil";
-import { listarTags, lerTags, type Tag } from "../../database/dbGestor/dbTags";
+import { listarTags, lerTags, nomesDasTags, type Tag } from "../../database/dbGestor/dbTags";
 
 // Situação de cada receita:
 // - recebida: já foi recebida (entra no saldo disponível)
@@ -91,9 +91,9 @@ export default function ConReceita() {
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [busca, setBusca] = useState("");
   const [buscarNome, setBuscarNome] = useState(true);
-  const [buscarTipo, setBuscarTipo] = useState(false);
-  const [tipoSelecionado, setTipoSelecionado] = useState("Todos");
-  const [tiposAbertos, setTiposAbertos] = useState(false);
+  const [buscarTag, setBuscarTag] = useState(false);
+  const [tagSelecionada, setTagSelecionada] = useState<number | null>(null);
+  const [tagsAbertas, setTagsAbertas] = useState(false);
   const [bancos, setBancos] = useState<Banco[]>([]);
   const [receitaParaReceber, setReceitaParaReceber] = useState<Receita | null>(null);
   const [gruposAbertos, setGruposAbertos] = useState<Record<number, boolean>>({});
@@ -145,26 +145,20 @@ export default function ConReceita() {
           (r) => statusDe(r, hoje) === STATUS_DO_FILTRO[filtro]
         );
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
-  const tiposDisponiveis = [
-    "Todos",
-    ...Array.from(new Set(receitasDoMes.map((receita) => receita.tipo))).sort((a, b) =>
-      a.localeCompare(b, "pt-BR")
-    ),
-  ];
   const filtradas = porStatus.filter((r) => {
     const nomeCorresponde = !buscarNome || !termo || r.nome.toLocaleLowerCase("pt-BR").includes(termo);
-    const tipoCorresponde = !buscarTipo || tipoSelecionado === "Todos" || r.tipo === tipoSelecionado;
-    return nomeCorresponde && tipoCorresponde;
+    const tagCorresponde = !buscarTag || tagSelecionada === null || lerTags(r.tags_ids).includes(tagSelecionada);
+    return nomeCorresponde && tagCorresponde;
   });
-  const placeholderBusca = buscarNome && buscarTipo
-    ? "Buscar por nome ou tipo"
+  const placeholderBusca = buscarNome && buscarTag
+    ? "Buscar por nome"
     : buscarNome
       ? "Buscar por nome"
-      : buscarTipo
-        ? "Selecione um tipo"
+      : buscarTag
+        ? "Filtre pelas tags"
         : "Busca desativada";
   const totalFiltrado = filtradas.reduce((soma, r) => soma + r.valor, 0);
-  const pesquisaAtiva = (buscarNome && Boolean(busca.trim())) || (buscarTipo && tipoSelecionado !== "Todos");
+  const pesquisaAtiva = (buscarNome && Boolean(busca.trim())) || (buscarTag && tagSelecionada !== null);
 
   const itensLista: ItemListaReceita[] = [];
   const gruposAdicionados = new Set<number>();
@@ -299,8 +293,7 @@ export default function ConReceita() {
       >
         <View style={styles.cardInfo}>
           <Text style={styles.nome}>{item.nome}</Text>
-          <Text style={styles.detalhe}>{item.tipo}</Text>
-          {lerTags(item.tags_ids).length > 0 && <Text style={styles.detalheTags}>{lerTags(item.tags_ids).map((id) => tags.find((tag) => tag.id === id)?.nome).filter(Boolean).join(" · ")}</Text>}
+          <Text style={styles.detalhe}>{nomesDasTags(item.tags_ids, tags).join(" · ") || "Sem tags"}</Text>
           <Text style={styles.detalhe}>
             Entrada: {dataISOparaBR(item.data)} · Venc.:{" "}
             {dataISOparaBR(item.vencimento)}
@@ -362,7 +355,7 @@ export default function ConReceita() {
     return (
       <CardParcelamento
         nome={primeira?.nome ?? "Parcelamento"}
-        tipo={primeira?.tipo ?? "Receita"}
+        tipo={nomesDasTags(primeira?.tags_ids, tags).join(" · ") || "Sem tags"}
         total={totalGrupo}
         quantidade={item.receitas.length}
         pagas={recebidas}
@@ -460,17 +453,17 @@ export default function ConReceita() {
         </View>}
       </View>
       <View style={styles.opcoesBusca}>
-        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) { setBuscarTipo(false); setTiposAbertos(false); } setBusca(""); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
-        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Tipo</Text><Switch value={buscarTipo} onValueChange={(ativo) => { setBuscarTipo(ativo); if (ativo) { setBuscarNome(false); setTipoSelecionado("Todos"); } setBusca(""); setTiposAbertos(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarTipo ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por tipo" /></View>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Nome</Text><Switch value={buscarNome} onValueChange={(ativo) => { setBuscarNome(ativo); if (ativo) { setBuscarTag(false); setTagsAbertas(false); } setBusca(""); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarNome ? "#00897B" : "#F4F4F4"} accessibilityLabel="Buscar por nome" /></View>
+        <View style={styles.opcaoBusca}><Text style={styles.opcaoBuscaTexto}>Tags</Text><Switch value={buscarTag} onValueChange={(ativo) => { setBuscarTag(ativo); if (ativo) { setBuscarNome(false); setTagSelecionada(null); } setBusca(""); setTagsAbertas(false); }} trackColor={{ false: "#D0D0D0", true: "#80CBC4" }} thumbColor={buscarTag ? "#00897B" : "#F4F4F4"} accessibilityLabel="Filtrar por tags" /></View>
       </View>
-      {buscarTipo && <View style={styles.seletorTipoContainer}>
-        <TouchableOpacity style={styles.seletorTipo} onPress={() => setTiposAbertos((aberto) => !aberto)} accessibilityRole="button" accessibilityLabel={`Tipo selecionado: ${tipoSelecionado}`} accessibilityState={{ expanded: tiposAbertos }}>
-          <Text style={styles.seletorTipoTexto} numberOfLines={1}>{tipoSelecionado}</Text>
-          <Ionicons name={tiposAbertos ? "chevron-up" : "chevron-down"} size={18} color="#00897B" />
+      {buscarTag && <View style={styles.seletorTipoContainer}>
+        <TouchableOpacity style={styles.seletorTipo} onPress={() => setTagsAbertas((aberto) => !aberto)} accessibilityRole="button" accessibilityLabel={`Tag selecionada: ${tags.find((tag) => tag.id === tagSelecionada)?.nome ?? "Todas as tags"}`} accessibilityState={{ expanded: tagsAbertas }}>
+          <Text style={styles.seletorTipoTexto} numberOfLines={1}>{tags.find((tag) => tag.id === tagSelecionada)?.nome ?? "Todas as tags"}</Text>
+          <Ionicons name={tagsAbertas ? "chevron-up" : "chevron-down"} size={18} color="#00897B" />
         </TouchableOpacity>
-        {tiposAbertos && <ScrollView style={styles.listaTipos} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-          {tiposDisponiveis.map((tipo) => <TouchableOpacity key={tipo} style={[styles.opcaoTipo, tipoSelecionado === tipo && styles.opcaoTipoAtiva]} onPress={() => { setTipoSelecionado(tipo); setTiposAbertos(false); }} accessibilityRole="button" accessibilityState={{ selected: tipoSelecionado === tipo }}>
-            <Text style={[styles.opcaoTipoTexto, tipoSelecionado === tipo && styles.opcaoTipoTextoAtiva]}>{tipo}</Text>
+        {tagsAbertas && <ScrollView style={styles.listaTipos} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+          {[{ id: null, nome: "Todas as tags" }, ...tags].map((tag) => <TouchableOpacity key={tag.id ?? "todas"} style={[styles.opcaoTipo, tagSelecionada === tag.id && styles.opcaoTipoAtiva]} onPress={() => { setTagSelecionada(tag.id); setTagsAbertas(false); }} accessibilityRole="button" accessibilityState={{ selected: tagSelecionada === tag.id }}>
+            <Text style={[styles.opcaoTipoTexto, tagSelecionada === tag.id && styles.opcaoTipoTextoAtiva]}>{tag.nome}</Text>
           </TouchableOpacity>)}
         </ScrollView>}
       </View>}
@@ -493,7 +486,7 @@ export default function ConReceita() {
           carregando ? null : (
             <View style={styles.vazio}>
               <Ionicons name="cash-outline" size={48} color="#BBBBBB" />
-              <Text style={styles.vazioTexto}>{busca.trim() || (buscarTipo && tipoSelecionado !== "Todos") ? "Nenhuma receita encontrada" : MENSAGEM_VAZIO[filtro]}</Text>
+              <Text style={styles.vazioTexto}>{busca.trim() || (buscarTag && tagSelecionada !== null) ? "Nenhuma receita encontrada" : MENSAGEM_VAZIO[filtro]}</Text>
             </View>
           )
         }

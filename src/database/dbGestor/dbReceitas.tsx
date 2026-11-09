@@ -1,11 +1,11 @@
 import { getDb } from "../db";
+import { lerTags } from "./dbTags";
 import { dataDaParcela, distribuirValoresParcelas, type ModoValorParcelas } from "./dbParcelamentos";
 
 export type Receita = {
   id: number;
   nome: string;
   valor: number;
-  tipo: string;
   data: string; // AAAA-MM-DD (data de entrada da receita)
   vencimento: string; // AAAA-MM-DD (data de vencimento)
   observacao: string | null;
@@ -25,7 +25,6 @@ export type Receita = {
 export type DadosReceita = {
   nome: string;
   valor: number;
-  tipo: string;
   data: string;
   vencimento: string;
   observacao?: string;
@@ -43,7 +42,7 @@ export async function inserirReceita(d: DadosReceita) {
     [
       d.nome,
       d.valor,
-      d.tipo,
+      "",
       d.data,
       d.vencimento,
       d.observacao?.trim() || null,
@@ -73,7 +72,7 @@ export async function inserirReceitasParceladas(
   await db.withTransactionAsync(async () => {
     const grupo = await db.runAsync(
       "INSERT INTO grupos_parcelas (natureza, nome, tipo, valor_total, quantidade, modo_valor) VALUES ('Receita', ?, ?, ?, ?, ?)",
-      [d.nome, d.tipo, total, quantidade, modo]
+      [d.nome, "", total, quantidade, modo]
     );
     for (let indice = 0; indice < quantidade; indice++) {
       const resultado = await db.runAsync(
@@ -82,7 +81,7 @@ export async function inserirReceitasParceladas(
         [
           d.nome,
           valores[indice],
-          d.tipo,
+          "",
           d.data,
           dataDaParcela(d.vencimento, indice),
           d.observacao?.trim() || null,
@@ -122,13 +121,13 @@ export async function atualizarReceita(id: number, d: DadosReceita) {
   const atual = await db.getFirstAsync<{ grupo_parcelas_id: number | null }>("SELECT grupo_parcelas_id FROM receitas WHERE id = ?", [id]);
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      "UPDATE receitas SET nome = ?, valor = ?, tipo = ?, data = ?, vencimento = ?, observacao = ?, recebido = ?, data_recebimento = CASE WHEN ? = 1 THEN COALESCE(data_recebimento, ?) ELSE NULL END, fixa = ?, parcelas = ?, banco_id = ?, tags_ids = ? WHERE id = ?",
-      [d.nome, d.valor, d.tipo, d.data, d.vencimento, d.observacao?.trim() || null, d.recebido ? 1 : 0, d.recebido ? 1 : 0, dataHojeISO(), d.fixa ? 1 : 0, d.parcelas ?? 1, d.recebido ? d.bancoId ?? null : null, JSON.stringify(d.tagsIds ?? []), id]
+      "UPDATE receitas SET nome = ?, valor = ?, data = ?, vencimento = ?, observacao = ?, recebido = ?, data_recebimento = CASE WHEN ? = 1 THEN COALESCE(data_recebimento, ?) ELSE NULL END, fixa = ?, parcelas = ?, banco_id = ?, tags_ids = ? WHERE id = ?",
+      [d.nome, d.valor, d.data, d.vencimento, d.observacao?.trim() || null, d.recebido ? 1 : 0, d.recebido ? 1 : 0, dataHojeISO(), d.fixa ? 1 : 0, d.parcelas ?? 1, d.recebido ? d.bancoId ?? null : null, JSON.stringify(d.tagsIds ?? []), id]
     );
     if (atual?.grupo_parcelas_id) {
-      await db.runAsync("UPDATE receitas SET nome = ?, tipo = ?, data = ?, tags_ids = ? WHERE grupo_parcelas_id = ?", [d.nome, d.tipo, d.data, JSON.stringify(d.tagsIds ?? []), atual.grupo_parcelas_id]);
+      await db.runAsync("UPDATE receitas SET nome = ?, data = ?, tags_ids = ? WHERE grupo_parcelas_id = ?", [d.nome, d.data, JSON.stringify(d.tagsIds ?? []), atual.grupo_parcelas_id]);
       const total = await db.getFirstAsync<{ total: number | null }>("SELECT SUM(valor) AS total FROM receitas WHERE grupo_parcelas_id = ?", [atual.grupo_parcelas_id]);
-      await db.runAsync("UPDATE grupos_parcelas SET nome = ?, tipo = ?, valor_total = ? WHERE id = ?", [d.nome, d.tipo, total?.total ?? d.valor, atual.grupo_parcelas_id]);
+      await db.runAsync("UPDATE grupos_parcelas SET nome = ?, tipo = '', valor_total = ? WHERE id = ?", [d.nome, total?.total ?? d.valor, atual.grupo_parcelas_id]);
     }
   });
 }
@@ -146,9 +145,10 @@ export async function unificarReceitas(origemId: number, destinoId: number) {
     const destino = await db.getFirstAsync<Receita>("SELECT * FROM receitas WHERE id = ? AND recebido = 0", [destinoId]);
     if (!origem || !destino || origem.id === destino.id) throw new Error("As receitas selecionadas não estão mais disponíveis.");
     const valor = origem.valor + destino.valor;
+    const tagsIds = [...new Set([...lerTags(destino.tags_ids), ...lerTags(origem.tags_ids)])];
     const mensagem = `Unificada com ${origem.nome} (${origem.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) em ${new Date().toLocaleDateString("pt-BR")}.`;
     const observacao = [destino.observacao?.trim(), mensagem].filter(Boolean).join("\n");
-    await db.runAsync("UPDATE receitas SET valor = ?, observacao = ? WHERE id = ?", [valor, observacao, destino.id]);
+    await db.runAsync("UPDATE receitas SET valor = ?, observacao = ?, tags_ids = ? WHERE id = ?", [valor, observacao, JSON.stringify(tagsIds), destino.id]);
     await db.runAsync("DELETE FROM receitas WHERE id = ?", [origem.id]);
     await db.runAsync("INSERT INTO unificacoes (natureza, nome_unificado, valor_unificado, nome_origem, valor_origem, nome_destino, valor_destino) VALUES (?, ?, ?, ?, ?, ?, ?)", ["Receita", destino.nome, valor, origem.nome, origem.valor, destino.nome, destino.valor]);
   });

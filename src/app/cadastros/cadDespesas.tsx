@@ -3,19 +3,16 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -31,39 +28,6 @@ import { sincronizarNotificacoes } from "../../services/notificacoes";
 import InfoButton from "../../components/infoButton";
 import SeletorTags from "../../components/seletorTags";
 import { lerTags } from "../../database/dbGestor/dbTags";
-
-// Edite as opções do combobox aqui
-const TIPOS = [
-  "Aluguel",
-  "Condomínio",
-  "Água",
-  "Energia",
-  "Internet",
-  "Telefone",
-  "Empréstimo",
-  "Financiamento",
-  "Cartão de Crédito",
-  "Seguro",
-  "IPVA",
-  "IPTU",
-  "Combustível",
-  "Transporte",
-  "Supermercado",
-  "Alimentação",
-  "Farmácia",
-  "Saúde",
-  "Academia",
-  "Educação",
-  "Mensalidade Escolar",
-  "Streaming",
-  "Lazer",
-  "Viagem",
-  "Manutenção",
-  "Investimento",
-  "Impostos",
-  "Salário Funcionário",
-  "Outros",
-];
 
 // Formatadores locais (não usam toISOString, que converte para UTC
 // e pode mudar o dia dependendo do horário)
@@ -108,8 +72,6 @@ const dataHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
 
 export default function CadDespesas() {
   const router = useRouter();
-  const { height: alturaTela } = useWindowDimensions();
-  const campoTipoRef = useRef<View>(null);
 
   // Se vier um "id" na rota, a tela abre em modo edição
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -121,7 +83,6 @@ export default function CadDespesas() {
   const [parcelas, setParcelas] = useState("1");
   const [modoValor, setModoValor] = useState<ModoValorParcelas>("total");
   const [utilizarParcelas, setUtilizarParcelas] = useState(false);
-  const [tipo, setTipo] = useState("");
   const [vencimento, setVencimento] = useState<Date | null>(editando ? null : dataHoje);
   const [dataEmissao, setDataEmissao] = useState<Date | null>(editando ? null : dataHoje);
   const [observacao, setObservacao] = useState("");
@@ -131,12 +92,7 @@ export default function CadDespesas() {
   const [grupoParcelado, setGrupoParcelado] = useState(false);
   const [frequencia, setFrequencia] = useState<"semanal" | "mensal" | "anual">("mensal");
 
-  const [tipoAberto, setTipoAberto] = useState(false);
-  const [posTipo, setPosTipo] = useState({ top: 0, left: 0, width: 0 });
   const [campoData, setCampoData] = useState<CampoData | null>(null);
-
-  // Altura máxima da lista: o que sobra da tela, limitado a 320
-  const alturaMaxLista = Math.min(320, alturaTela - posTipo.top - 24);
 
   const voltar = () => {
     if (router.canGoBack()) {
@@ -165,7 +121,6 @@ export default function CadDespesas() {
         setNome(d.nome);
         setValor(formatarMoeda(String(Math.round(d.valor * 100))));
         setParcelas(String(d.parcelas ?? 1));
-        setTipo(d.tipo);
         setVencimento(isoParaDate(d.provisao));
         setDataEmissao(isoParaDate(d.data_emissao));
         setObservacao(d.observacao ?? "");
@@ -185,18 +140,6 @@ export default function CadDespesas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idEdicao]);
 
-  const abrirTipo = () => {
-    campoTipoRef.current?.measureInWindow((x, y, w, h) => {
-      setPosTipo({ top: y + h + 4, left: x, width: w });
-      setTipoAberto(true);
-    });
-  };
-
-  const escolherTipo = (t: string) => {
-    setTipo(t);
-    setTipoAberto(false);
-  };
-
   // Chamado quando o usuário escolhe (ou cancela) no seletor de data
   const aoMudarData = (evento: DateTimePickerEvent, data?: Date) => {
     const campo = campoData;
@@ -214,7 +157,6 @@ export default function CadDespesas() {
       !nome.trim() ||
       isNaN(valorNumero) ||
       valorNumero <= 0 ||
-      !tipo ||
       !vencimento ||
       !dataEmissao ||
       !Number.isInteger(parcelasNumero) ||
@@ -227,7 +169,6 @@ export default function CadDespesas() {
     const dados = {
       nome: nome.trim(),
       valor: valorNumero,
-      tipo,
       provisao: paraISO(vencimento),
       data_emissao: paraISO(dataEmissao),
       observacao,
@@ -289,7 +230,7 @@ export default function CadDespesas() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-      <Text style={styles.label}>Nome</Text>
+      <Text style={styles.label}>Nome *</Text>
       <TextInput
         style={styles.input}
         placeholder="Ex.: Aluguel"
@@ -318,7 +259,7 @@ export default function CadDespesas() {
       </View>}
 
       {(utilizarParcelas || (editando && grupoParcelado)) && <>
-      <Text style={styles.label}>Número de parcelas</Text>
+      <Text style={styles.label}>Número de parcelas *</Text>
       <View style={styles.parcelasControle}>
         <TouchableOpacity
           style={[styles.botaoParcela, Number(parcelas) <= 1 && styles.botaoParcelaDesativado]}
@@ -372,7 +313,7 @@ export default function CadDespesas() {
       </>}
       </>}
 
-      <Text style={styles.label}>{editando && grupoParcelado && Number(parcelas) > 1 ? "Valor desta parcela" : !editando && modoValor === "parcela" ? "Valor de cada parcela" : "Valor total"}</Text>
+      <Text style={styles.label}>{editando && grupoParcelado && Number(parcelas) > 1 ? "Valor desta parcela *" : !editando && modoValor === "parcela" ? "Valor de cada parcela *" : "Valor total *"}</Text>
       <TextInput
         style={styles.input}
         placeholder="0,00"
@@ -386,27 +327,9 @@ export default function CadDespesas() {
           : `Total do grupo: ${formatarValorMoeda(valorNumeroValido(valor) * Number(parcelas))}.`}
       </Text>}
 
-      <Text style={styles.label}>Tipo</Text>
-      <View ref={campoTipoRef} collapsable={false}>
-        <TouchableOpacity
-          style={styles.combo}
-          onPress={abrirTipo}
-          activeOpacity={0.7}
-        >
-          <Text style={tipo ? styles.comboTexto : styles.comboPlaceholder}>
-            {tipo || "Selecione o tipo"}
-          </Text>
-          <Ionicons
-            name={tipoAberto ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#666666"
-          />
-        </TouchableOpacity>
-      </View>
-
       <SeletorTags selecionadas={tagsIds} onChange={setTagsIds} />
 
-      <Text style={styles.label}>Data de emissão</Text>
+      <Text style={styles.label}>Data de emissão *</Text>
       <TouchableOpacity style={styles.combo} onPress={() => setCampoData("emissao")} activeOpacity={0.7}>
         <Text style={dataEmissao ? styles.comboTexto : styles.comboPlaceholder}>{dataEmissao ? paraBR(dataEmissao) : "Selecione a data de emissão"}</Text>
         <Ionicons name="calendar-outline" size={20} color="#666666" />
@@ -415,7 +338,7 @@ export default function CadDespesas() {
         <DateTimePicker value={dataEmissao ?? dataHoje} mode="date" display={Platform.OS === "ios" ? "inline" : "default"} locale="pt-BR" onChange={aoMudarData} />
       )}
 
-      <Text style={styles.label}>Vencimento</Text>
+      <Text style={styles.label}>Vencimento *</Text>
       <TouchableOpacity
         style={styles.combo}
         onPress={() => setCampoData("provisao")}
@@ -492,7 +415,7 @@ export default function CadDespesas() {
         </View>
       )}
 
-      <Text style={styles.label}>Observação (opcional)</Text>
+      <Text style={styles.label}>Observação</Text>
       <TextInput
         style={styles.input}
         placeholder="Ex.: parcela 3 de 12"
@@ -509,51 +432,6 @@ export default function CadDespesas() {
       </TouchableOpacity>
       </ScrollView>
 
-      {/* Lista do combobox */}
-      <Modal
-        transparent
-        visible={tipoAberto}
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setTipoAberto(false)}
-      >
-        {/* Toque fora fecha a lista */}
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => setTipoAberto(false)}
-        />
-
-        <View
-          style={[
-            styles.lista,
-            {
-              top: posTipo.top,
-              left: posTipo.left,
-              width: posTipo.width,
-              maxHeight: alturaMaxLista,
-            },
-          ]}
-        >
-          <ScrollView
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-            keyboardShouldPersistTaps="handled"
-          >
-            {TIPOS.map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.opcao, tipo === t && styles.opcaoAtiva]}
-                onPress={() => escolherTipo(t)}
-              >
-                <Text style={styles.opcaoTexto}>{t}</Text>
-                {tipo === t && (
-                  <Ionicons name="checkmark" size={20} color="#2E7D32" />
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

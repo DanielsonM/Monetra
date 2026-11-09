@@ -109,9 +109,11 @@ export async function sacarAplicacao(aplicacaoId: number, valor: number) {
 
     const hoje = new Date();
     const data = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+    await db.runAsync("INSERT OR IGNORE INTO tags (nome) VALUES (?)", [TIPO_RECEITA_SAQUE]);
+    const tagSaque = await db.getFirstAsync<{ id: number }>("SELECT id FROM tags WHERE nome = ? COLLATE NOCASE", [TIPO_RECEITA_SAQUE]);
     const receita = await db.runAsync(
-      "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, fixa, parcelas, banco_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [`Saque de ${aplicacao.banco}`, valor, TIPO_RECEITA_SAQUE, data, data, `Saque da aplicação financeira ${aplicacao.banco}.`, 1, 0, 1, aplicacao.banco_id]
+      "INSERT INTO receitas (nome, valor, tipo, data, vencimento, observacao, recebido, fixa, parcelas, banco_id, tags_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [`Saque de ${aplicacao.banco}`, valor, "", data, data, `Saque da aplicação financeira ${aplicacao.banco}.`, 1, 0, 1, aplicacao.banco_id, JSON.stringify(tagSaque ? [tagSaque.id] : [])]
     );
     receitaId = receita.lastInsertRowId;
     await db.runAsync(
