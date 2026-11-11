@@ -278,6 +278,14 @@ export async function excluirDespesa(id: number) {
   });
 }
 
+export async function excluirGrupoDespesas(grupoId: number) {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM despesas WHERE grupo_parcelas_id = ?", [grupoId]);
+    await db.runAsync("DELETE FROM grupos_parcelas WHERE id = ? AND natureza = 'Despesa'", [grupoId]);
+  });
+}
+
 async function ajustarGrupoParcelas(db: Awaited<ReturnType<typeof getDb>>, tabela: "despesas" | "receitas", grupoId: number) {
   const itens = await db.getAllAsync<{ id: number; valor: number }>(
     `SELECT id, valor FROM ${tabela} WHERE grupo_parcelas_id = ? ORDER BY numero_parcela, id`, [grupoId]

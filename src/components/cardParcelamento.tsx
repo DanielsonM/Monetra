@@ -10,6 +10,7 @@ type CardParcelamentoProps = {
   pagas: number;
   aberto: boolean;
   onPress: () => void;
+  onDelete?: () => void;
   natureza: "despesa" | "receita";
   children: ReactNode;
 };
@@ -25,31 +26,46 @@ export default function CardParcelamento({
   pagas,
   aberto,
   onPress,
+  onDelete,
   natureza,
   children,
 }: CardParcelamentoProps) {
   return (
     <View style={styles.card}>
-      <TouchableOpacity
-        style={styles.cabecalho}
-        onPress={onPress}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: aberto }}
-        accessibilityLabel={`${nome}, ${quantidade} parcelas, ${pagas} pagas. ${aberto ? "Fechar" : "Abrir"} parcelas`}
-      >
-        <View style={styles.info}>
-          <Text style={styles.nome} numberOfLines={1}>{nome}</Text>
-          <Text style={styles.tipo} numberOfLines={1}>{tipo}</Text>
-          <Text style={styles.progresso}>
-            {pagas} de {quantidade} parcelas {natureza === "despesa" ? "pagas" : "recebidas"}
-          </Text>
-        </View>
-        <View style={styles.direita}>
-          <Text style={styles.total}>{formatarMoeda(total)}</Text>
-          <Ionicons name={aberto ? "chevron-up" : "chevron-down"} size={22} color="#666666" />
-        </View>
-      </TouchableOpacity>
+      <View style={styles.cabecalho}>
+        <TouchableOpacity
+          style={styles.expandir}
+          onPress={onPress}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: aberto }}
+          accessibilityLabel={`${nome}, ${quantidade} parcelas, ${pagas} pagas. ${aberto ? "Fechar" : "Abrir"} parcelas`}
+        >
+          <View style={styles.info}>
+            <Text style={styles.nome} numberOfLines={1}>{nome}</Text>
+            <Text style={styles.tipo} numberOfLines={1}>{tipo}</Text>
+            <Text style={styles.progresso}>
+              {pagas} de {quantidade} parcelas {natureza === "despesa" ? "pagas" : "recebidas"}
+            </Text>
+          </View>
+          <View style={styles.direita}>
+            <Text style={styles.total}>{formatarMoeda(total)}</Text>
+            <Ionicons name={aberto ? "chevron-up" : "chevron-down"} size={22} color="#666666" />
+          </View>
+        </TouchableOpacity>
+        {onDelete && (
+          <TouchableOpacity
+            style={styles.botaoExcluir}
+            onPress={onDelete}
+            hitSlop={8}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Excluir todas as parcelas de ${nome}`}
+          >
+            <Ionicons name="trash-outline" size={21} color="#D32F2F" />
+          </TouchableOpacity>
+        )}
+      </View>
       {aberto && <View style={styles.parcelas}>{children}</View>}
     </View>
   );
@@ -67,7 +83,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  cabecalho: { minHeight: 82, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, gap: 12 },
+  cabecalho: { minHeight: 82, flexDirection: "row", alignItems: "center", paddingLeft: 16, paddingRight: 12, gap: 8 },
+  expandir: { flex: 1, minHeight: 82, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  botaoExcluir: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
   info: { flex: 1 },
   nome: { fontSize: 16, fontWeight: "bold", color: "#1A1A1A" },
   tipo: { fontSize: 12, color: "#666666", marginTop: 3 },

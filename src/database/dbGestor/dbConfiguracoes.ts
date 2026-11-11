@@ -17,6 +17,21 @@ export const CONFIG_PADRAO: ConfigNotificacao = {
 };
 
 const CHAVE = "notificacoes";
+const CHAVE_AVISO_BATERIA_INICIAL = "aviso_bateria_inicial";
+
+export async function consumirAvisoBateriaInicial(): Promise<boolean> {
+  const db = await getDb();
+  const existente = await db.getFirstAsync<{ valor: string }>(
+    "SELECT valor FROM configuracoes WHERE chave = ?",
+    [CHAVE_AVISO_BATERIA_INICIAL]
+  );
+  if (existente) return false;
+  await db.runAsync(
+    "INSERT INTO configuracoes (chave, valor) VALUES (?, '1')",
+    [CHAVE_AVISO_BATERIA_INICIAL]
+  );
+  return true;
+}
 
 export async function carregarConfigNotificacao(): Promise<ConfigNotificacao> {
   const db = await getDb();

@@ -173,6 +173,14 @@ export async function excluirReceita(id: number) {
   });
 }
 
+export async function excluirGrupoReceitas(grupoId: number) {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM receitas WHERE grupo_parcelas_id = ?", [grupoId]);
+    await db.runAsync("DELETE FROM grupos_parcelas WHERE id = ? AND natureza = 'Receita'", [grupoId]);
+  });
+}
+
 
 // Soma de todas as receitas (recebidas ou não)
 export async function totalReceitas(): Promise<number> {

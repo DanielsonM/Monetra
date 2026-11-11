@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import InfoButton from "../../components/infoButton";
 import {
   excluirReceita,
+  excluirGrupoReceitas,
   listarReceitas,
   receberReceita,
   type Receita,
@@ -256,6 +257,29 @@ export default function ConReceita() {
     );
   };
 
+  const confirmarExclusaoGrupo = (grupoId: number, nome: string, quantidade: number) => {
+    Alert.alert(
+      "Excluir parcelamento",
+      `Deseja excluir todas as ${quantidade} parcelas de "${nome}"? Parcelas recebidas e a receber também serão removidas.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir todas",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await excluirGrupoReceitas(grupoId);
+              await carregar();
+            } catch (erro) {
+              console.error(erro);
+              Alert.alert("Erro", "Não foi possível excluir o parcelamento.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const confirmarRecebimento = (receita: Receita) => {
     if (bancos.length === 0) {
       Alert.alert("Cadastre um banco", "Para registrar o recebimento, primeiro cadastre o banco onde o valor entrou.", [
@@ -362,6 +386,7 @@ export default function ConReceita() {
         natureza="receita"
         aberto={Boolean(gruposAbertos[item.grupoId])}
         onPress={() => setGruposAbertos((atual) => ({ ...atual, [item.grupoId]: !atual[item.grupoId] }))}
+        onDelete={() => confirmarExclusaoGrupo(item.grupoId, primeira?.nome ?? "Parcelamento", primeira?.parcelas ?? item.receitas.length)}
       >
         {item.receitas.map((receita) => <View key={receita.id}>{renderReceita(receita, true)}</View>)}
       </CardParcelamento>

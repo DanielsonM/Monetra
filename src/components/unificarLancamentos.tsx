@@ -7,6 +7,7 @@ import InfoButton from "./infoButton";
 import { type Despesa, listarDespesas, unificarDespesas } from "../database/dbGestor/dbDespesas";
 import { type Receita, listarReceitas, unificarReceitas } from "../database/dbGestor/dbReceitas";
 import { listarTags, nomesDasTags, type Tag } from "../database/dbGestor/dbTags";
+import { sincronizarNotificacoes } from "../services/notificacoes";
 
 type Tipo = "Despesa" | "Receita";
 type Lancamento = Despesa | Receita;
@@ -45,6 +46,7 @@ export default function UnificarLancamentos({ tipo }: { tipo: Tipo }) {
         try {
           if (tipo === "Despesa") await unificarDespesas(origem.id, destino.id);
           else await unificarReceitas(origem.id, destino.id);
+          if (tipo === "Despesa") await sincronizarNotificacoes();
           Alert.alert("Pronto", `${tipo} unificada com sucesso.`);
           await carregar();
         } catch (erro) {

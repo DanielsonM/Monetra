@@ -1,7 +1,10 @@
 import { Poppins_700Bold, useFonts } from "@expo-google-fonts/poppins";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import * as Battery from "expo-battery";
+import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ConCard from "../../components/conCard";
 import AplicacoesRecentes from "../../components/aplicacoesRecentes";
@@ -11,6 +14,7 @@ import MenuPrincipal from "../../components/menu";
 import Provisao from "../../components/provisao";
 import ResumoFinanceiro from "../../components/resumoFinanceiro";
 import { sincronizarNotificacoes } from "../../services/notificacoes";
+import { consumirAvisoBateriaInicial } from "../../database/dbGestor/dbConfiguracoes";
 
 export default function Home() {
   // Fonte do título (Poppins Bold)
@@ -20,13 +24,66 @@ export default function Home() {
   // cards remontarem e recarregarem os valores
   const [versao, setVersao] = useState(0);
   const [cardSelecionado, setCardSelecionado] = useState(0);
+  const avisoBateriaMostrado = useRef(false);
   const atualizarCards = () => setVersao((v) => v + 1);
 
   // Reagenda os avisos de provisão sempre que a Home volta a ficar em foco
   useFocusEffect(
     useCallback(() => {
       // Só despesas não pagas
-      sincronizarNotificacoes();
+      void sincronizarNotificacoes().then(async () => {
+        if (avisoBateriaMostrado.current) return;
+        avisoBateriaMostrado.current = true;
+        try {
+          const primeiroInicio = Platform.OS === "android"
+            ? await consumirAvisoBateriaInicial()
+            : false;
+          const otimizacaoAtiva = primeiroInicio
+            ? await Battery.isBatteryOptimizationEnabledAsync()
+            : false;
+          const permissao = await Notifications.getPermissionsAsync();
+          const canal = Platform.OS === "android"
+            ? await Notifications.getNotificationChannelAsync("vencimentos")
+            : null;
+          const notificacoesPermitidas = permissao.granted ||
+            permissao.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+          const notificacoesDesativadas = !notificacoesPermitidas ||
+            canal?.importance === Notifications.AndroidImportance.NONE;
+          const avisarNotificacoesDesativadas = () => {
+            if (notificacoesDesativadas) {
+              Alert.alert(
+                "Notificações desativadas",
+                "Ative as notificações do Monetra nas configurações do aparelho para receber avisos de vencimento.",
+                [
+                { text: "Agora não", style: "cancel" },
+                {
+                  text: "Abrir configurações",
+                  onPress: () => {
+                    void Linking.openSettings().catch((erro) =>
+                      console.error("Não foi possível abrir as configurações do app:", erro)
+                    );
+                  },
+                },
+                ]
+              );
+            }
+          };
+
+          if (primeiroInicio && otimizacaoAtiva) {
+            Alert.alert(
+              "Permitir avisos com o app fechado",
+              "A economia de bateria pode impedir o Monetra de entregar notificações em segundo plano. Nas configurações do app, abra Bateria e escolha Sem restrições ou Permitir atividade em segundo plano.",
+              undefined,
+              { onDismiss: avisarNotificacoesDesativadas }
+            );
+            return;
+          }
+          avisarNotificacoesDesativadas();
+        } catch (erro) {
+          avisoBateriaMostrado.current = false;
+          console.error("Não foi possível verificar a otimização da bateria:", erro);
+        }
+      });
 
       // Para testar as notificações, tire as barras da linha abaixo.
       // Em 5 segundos deve aparecer uma notificação. Depois comente de novo.

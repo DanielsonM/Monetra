@@ -20,6 +20,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   type Despesa,
   excluirDespesa,
+  excluirGrupoDespesas,
   listarDespesas,
   registrarPagamentoDespesa,
   totalDespesasPagas,
@@ -31,6 +32,7 @@ import CardParcelamento from "../../components/cardParcelamento";
 import NavegadorMes, { chaveMesAtual } from "../../components/navegadorMes";
 import CardResumoRetratil from "../../components/cardResumoRetratil";
 import { listarTags, lerTags, nomesDasTags, type Tag } from "../../database/dbGestor/dbTags";
+import { sincronizarNotificacoes } from "../../services/notificacoes";
 
 // Formata valores para Real brasileiro
 const formatarMoeda = (valor: number) =>
@@ -39,6 +41,38 @@ const formatarMoeda = (valor: number) =>
 type ItemListaDespesa =
   | { chave: string; natureza: "despesa"; despesa: Despesa }
   | { chave: string; natureza: "grupo"; grupoId: number; despesas: Despesa[] };
+
+type DespesaConsultada = Despesa & { projetada?: true };
+
+function proximaOcorrencia(dataISO: string, frequencia: Despesa["frequencia"]): string {
+  const [ano, mes, dia] = dataISO.split("-").map(Number);
+  if (frequencia === "mensal") {
+    const proximoMes = new Date(ano, mes, 1);
+    const ultimoDia = new Date(proximoMes.getFullYear(), proximoMes.getMonth() + 1, 0).getDate();
+    return `${proximoMes.getFullYear()}-${String(proximoMes.getMonth() + 1).padStart(2, "0")}-${String(Math.min(dia, ultimoDia)).padStart(2, "0")}`;
+  }
+  const proxima = frequencia === "semanal"
+    ? new Date(ano, mes - 1, dia + 7)
+    : new Date(ano + 1, mes - 1, dia);
+  return `${proxima.getFullYear()}-${String(proxima.getMonth() + 1).padStart(2, "0")}-${String(proxima.getDate()).padStart(2, "0")}`;
+}
+
+function projetarDespesasFixas(despesas: Despesa[], mes: string): DespesaConsultada[] {
+  const projetadas: DespesaConsultada[] = [];
+  for (const despesa of despesas) {
+    if (!despesa.fixa || despesa.grupo_parcelas_id || despesa.provisao.slice(0, 7) >= mes) continue;
+    let ocorrencia = despesa.provisao;
+    let passos = 0;
+    while (ocorrencia.slice(0, 7) < mes && passos < 1200) {
+      ocorrencia = proximaOcorrencia(ocorrencia, despesa.frequencia);
+      passos++;
+    }
+    if (ocorrencia.slice(0, 7) === mes) {
+      projetadas.push({ ...despesa, id: -despesa.id, provisao: ocorrencia, pago: 0, valor_pago: 0, projetada: true });
+    }
+  }
+  return projetadas;
+}
 
 export default function ConDespesa() {
   const router = useRouter();
@@ -71,7 +105,10 @@ export default function ConDespesa() {
     return () => clearInterval(intervalo);
   }, []);
 
-  const despesasDoMes = despesas.filter((d) => d.provisao.startsWith(mesSelecionado));
+  const despesasDoMes: DespesaConsultada[] = [
+    ...despesas.filter((d) => d.provisao.startsWith(mesSelecionado)),
+    ...projetarDespesasFixas(despesas, mesSelecionado),
+  ];
 
   const despesasFiltradas = despesasDoMes.filter((d) => {
     const termo = busca.trim().toLocaleLowerCase("pt-BR");
@@ -180,10 +217,35 @@ export default function ConDespesa() {
           onPress: async () => {
             try {
               await excluirDespesa(despesa.id);
+              await sincronizarNotificacoes();
               await carregar();
             } catch (erro) {
               console.error(erro);
               Alert.alert("Erro", "Não foi possível excluir a despesa.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const confirmarExclusaoGrupo = (grupoId: number, nome: string, quantidade: number) => {
+    Alert.alert(
+      "Excluir parcelamento",
+      `Deseja excluir todas as ${quantidade} parcelas de "${nome}"? Parcelas pagas e pendentes também serão removidas.`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir todas",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await excluirGrupoDespesas(grupoId);
+              await sincronizarNotificacoes();
+              await carregar();
+            } catch (erro) {
+              console.error(erro);
+              Alert.alert("Erro", "Não foi possível excluir o parcelamento.");
             }
           },
         },
@@ -210,10 +272,11 @@ export default function ConDespesa() {
     }
   };
 
-  const renderDespesa = (item: Despesa, compacta = false) => (
+  const renderDespesa = (item: DespesaConsultada, compacta = false) => (
     <TouchableOpacity
       style={compacta ? styles.itemGrupo : styles.card}
       activeOpacity={0.8}
+      disabled={item.projetada}
       onPress={() => modoSelecao ? alternarSelecao(item) : editar(item)}
       accessibilityRole="button"
       accessibilityState={modoSelecao ? { selected: despesasSelecionadas.includes(item.id) } : undefined}
@@ -223,6 +286,7 @@ export default function ConDespesa() {
         <Text style={styles.detalhe}>
           {nomesDasTags(item.tags_ids, tags).join(" · ") || "Sem tags"} · Emissão {dataISOparaBR(item.data_emissao)} · Vencimento {dataISOparaBR(item.provisao)}
         </Text>
+        {item.projetada && <Text style={styles.detalheParcela}>Despesa fixa · previsão</Text>}
         {item.grupo_parcelas_id && <Text style={styles.detalheParcela}>Parcela {item.numero_parcela} de {item.parcelas}</Text>}
         {!item.pago && (item.valor_pago ?? 0) > 0 && (
           <Text style={styles.detalhePago}>Pago {formatarMoeda(item.valor_pago)} · Restante {formatarMoeda(Math.max(0, item.valor - item.valor_pago))}</Text>
@@ -234,7 +298,7 @@ export default function ConDespesa() {
           <Ionicons name={despesasSelecionadas.includes(item.id) ? "checkbox" : "square-outline"} size={24} color="#00897B" />
         </View>}
         <Text style={styles.valor}>{formatarMoeda(item.pago ? item.valor : Math.max(0, item.valor - (item.valor_pago ?? 0)))}</Text>
-        {!item.pago && Math.max(0, item.valor - (item.valor_pago ?? 0)) > 0.01 && (
+        {!item.projetada && !item.pago && Math.max(0, item.valor - (item.valor_pago ?? 0)) > 0.01 && (
           <TouchableOpacity
             style={styles.botaoParcial}
             onPress={() => { void iniciarPagamento(item); }}
@@ -247,13 +311,13 @@ export default function ConDespesa() {
             <Text style={styles.botaoParcialTexto}>Pagar</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
+        {!item.projetada && <TouchableOpacity
           onPress={() => confirmarExclusao(item)}
           hitSlop={10}
           activeOpacity={0.7}
         >
           <Ionicons name="trash-outline" size={20} color="#D32F2F" />
-        </TouchableOpacity>
+        </TouchableOpacity>}
       </View>
     </TouchableOpacity>
   );
@@ -273,6 +337,7 @@ export default function ConDespesa() {
         natureza="despesa"
         aberto={Boolean(gruposAbertos[item.grupoId])}
         onPress={() => setGruposAbertos((atual) => ({ ...atual, [item.grupoId]: !atual[item.grupoId] }))}
+        onDelete={() => confirmarExclusaoGrupo(item.grupoId, primeiro?.nome ?? "Parcelamento", primeiro?.parcelas ?? item.despesas.length)}
       >
         {item.despesas.map((despesa) => <View key={despesa.id}>{renderDespesa(despesa, true)}</View>)}
       </CardParcelamento>
@@ -401,6 +466,7 @@ export default function ConDespesa() {
                   setSalvandoPagamento(true);
                   await registrarPagamentoDespesa(despesaPagamento.id, valor);
                   setDespesaPagamento(null);
+                  await sincronizarNotificacoes();
                   await carregar();
                 } catch (erro) {
                   const mensagem = erro instanceof Error ? erro.message : "Não foi possível registrar o pagamento.";
