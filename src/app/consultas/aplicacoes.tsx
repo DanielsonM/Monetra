@@ -92,6 +92,10 @@ export default function Aplicacoes() {
           <Ionicons name="git-compare-outline" size={17} color="#FFFFFF" />
           <Text style={styles.textoResumoUnificar}>Unificar aplicações</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.botaoResumoSimular} onPress={() => router.push("/ferramentas/calculadoraAplicacoes" as never)} activeOpacity={0.8} accessibilityRole="button">
+          <Ionicons name="calculator-outline" size={18} color="#1565C0" />
+          <Text style={styles.textoResumoSimular}>Simular gasto com aplicações</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -122,6 +126,8 @@ const styles = StyleSheet.create({
   resumoValor: { fontSize: 30, fontWeight: "bold", color: "#FFFFFF", marginTop: 4 },
   botaoResumoUnificar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.18)", borderRadius: 10, paddingVertical: 10, marginTop: 12 },
   textoResumoUnificar: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
+  botaoResumoSimular: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#FFFFFF", borderRadius: 10, paddingVertical: 11, marginTop: 9 },
+  textoResumoSimular: { color: "#1565C0", fontSize: 14, fontWeight: "bold" },
   lista: { paddingBottom: 20, flexGrow: 1 },
   card: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14, marginBottom: 12, shadowColor: "#000000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   cardTopo: { flexDirection: "row", alignItems: "center", gap: 12 },
