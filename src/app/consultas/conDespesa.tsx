@@ -57,10 +57,16 @@ function proximaOcorrencia(dataISO: string, frequencia: Despesa["frequencia"]): 
   return `${proxima.getFullYear()}-${String(proxima.getMonth() + 1).padStart(2, "0")}-${String(proxima.getDate()).padStart(2, "0")}`;
 }
 
+function mesDeExibicaoDespesa(despesa: Despesa): string {
+  const mesEmissao = despesa.data_emissao.slice(0, 7);
+  const mesProvisao = despesa.provisao.slice(0, 7);
+  return mesEmissao > mesProvisao ? mesEmissao : mesProvisao;
+}
+
 function projetarDespesasFixas(despesas: Despesa[], mes: string): DespesaConsultada[] {
   const projetadas: DespesaConsultada[] = [];
   for (const despesa of despesas) {
-    if (!despesa.fixa || despesa.grupo_parcelas_id || despesa.provisao.slice(0, 7) >= mes) continue;
+    if (!despesa.fixa || despesa.grupo_parcelas_id || despesa.data_emissao.slice(0, 7) > mes || despesa.provisao.slice(0, 7) >= mes) continue;
     let ocorrencia = despesa.provisao;
     let passos = 0;
     while (ocorrencia.slice(0, 7) < mes && passos < 1200) {
@@ -106,7 +112,7 @@ export default function ConDespesa() {
   }, []);
 
   const despesasDoMes: DespesaConsultada[] = [
-    ...despesas.filter((d) => d.provisao.startsWith(mesSelecionado)),
+    ...despesas.filter((d) => mesDeExibicaoDespesa(d) === mesSelecionado),
     ...projetarDespesasFixas(despesas, mesSelecionado),
   ];
 
