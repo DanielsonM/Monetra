@@ -9,6 +9,7 @@ import {
   listarDespesas,
   renovarPendentes,
 } from "../database/dbGestor/dbDespesas";
+import { listarReceitas } from "../database/dbGestor/dbReceitas";
 import { dataISOparaBR } from "../utils/converterData";
 
 // ---------------------------------------------------------------------------
@@ -168,15 +169,48 @@ function montarAvisos(d: Despesa, c: ConfigNotificacao): Aviso[] {
 // salvar configurações) e ao abrir o app.
 // ---------------------------------------------------------------------------
 async function executarSincronizacao() {
+  await renovarPendentes();
+  const [todasDespesas, receitas, apresentadas] = await Promise.all([
+    listarDespesas(),
+    listarReceitas(),
+    Notifications.getPresentedNotificationsAsync(),
+  ]);
+
+  const despesasPorId = new Map(todasDespesas.map((despesa) => [despesa.id, despesa]));
+  const receitasPorId = new Map(receitas.map((receita) => [receita.id, receita]));
+  for (const notificacao of apresentadas) {
+    const dados = notificacao.request.content.data as {
+      despesaId?: unknown;
+      provisao?: unknown;
+      receitaId?: unknown;
+      vencimento?: unknown;
+    } | undefined;
+    if (!dados) continue;
+
+    const idDespesa = Number(dados.despesaId);
+    const despesa = Number.isInteger(idDespesa) ? despesasPorId.get(idDespesa) : undefined;
+    const despesaLiquidadaOuRemovida = dados.despesaId !== undefined &&
+      (!despesa || Boolean(despesa.pago) || (typeof dados.provisao === "string" && dados.provisao !== despesa.provisao));
+
+    const idReceita = Number(dados.receitaId);
+    const receita = Number.isInteger(idReceita) ? receitasPorId.get(idReceita) : undefined;
+    const receitaRecebidaOuRemovida = dados.receitaId !== undefined &&
+      (!receita || Boolean(receita.recebido) || (typeof dados.vencimento === "string" && dados.vencimento !== receita.vencimento));
+
+    if (despesaLiquidadaOuRemovida || receitaRecebidaOuRemovida) {
+      await Notifications.dismissNotificationAsync(notificacao.request.identifier);
+    }
+  }
+
   const permitido = await pedirPermissaoNotificacoes();
   if (!permitido) {
+    await Notifications.cancelAllScheduledNotificationsAsync();
     console.warn("Notificações desativadas: permissão não concedida.");
     return;
   }
 
-  await renovarPendentes();
   const config = await carregarConfigNotificacao();
-  const despesas = (await listarDespesas()).filter((d) => !d.pago);
+  const despesas = todasDespesas.filter((d) => !d.pago);
   const limite = Date.now() + 5000; // ignora horários que já passaram
 
   const todos = despesas.flatMap((d) => montarAvisos(d, config));
@@ -202,7 +236,10 @@ async function executarSincronizacao() {
           title: a.titulo,
           body: a.texto,
           sound: true,
-          data: { despesaId: a.despesaId },
+          data: {
+            despesaId: a.despesaId,
+            provisao: despesasPorId.get(a.despesaId)?.provisao,
+          },
         },
         trigger:
           a.hora !== undefined
